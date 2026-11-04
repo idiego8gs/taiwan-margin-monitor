@@ -1,0 +1,559 @@
+{
+  "start": "2026-07-08",
+  "end": "2026-11-03",
+  "codes": [
+    "3363",
+    "2308",
+    "8039",
+    "2454"
+  ],
+  "results": [
+    {
+      "threshold": 130,
+      "holding_days": 5,
+      "events": {
+        "n": 2,
+        "mean_net_pct": "6.26524349903764466940141395",
+        "median_net_pct": "6.26524349903764466940141395",
+        "win_rate_pct": "50.0"
+      },
+      "comparison_all_stock_days": {
+        "n": 292,
+        "mean_net_pct": "-0.6288419170889244786656146304",
+        "median_net_pct": "-1.558832585134810346237004425",
+        "win_rate_pct": "43.15068493150684931506849315"
+      },
+      "event_details": [
+        {
+          "code": "3363",
+          "signal_date": "2026-07-30",
+          "entry_date": "2026-07-31",
+          "exit_date": "2026-08-06",
+          "maintenance": "121.1171728157281770316204852",
+          "gross_return_pct": "25.70239334027055150884495320",
+          "net_return_pct": "24.96808073469291691181897220"
+        },
+        {
+          "code": "3363",
+          "signal_date": "2026-10-22",
+          "entry_date": "2026-10-27",
+          "exit_date": "2026-11-02",
+          "maintenance": "129.8202514371072156933602287",
+          "gross_return_pct": "-11.92307692307692307692307692",
+          "net_return_pct": "-12.43759373661762757301614430"
+        }
+      ]
+    },
+    {
+      "threshold": 130,
+      "holding_days": 10,
+      "events": {
+        "n": 1,
+        "mean_net_pct": "24.1404775510194538859128863",
+        "median_net_pct": "24.14047755101945388591288630",
+        "win_rate_pct": "100"
+      },
+      "comparison_all_stock_days": {
+        "n": 272,
+        "mean_net_pct": "0.2735303307546458671975941074",
+        "median_net_pct": "-1.732928595399574254705692410",
+        "win_rate_pct": "45.58823529411764705882352941"
+      },
+      "event_details": [
+        {
+          "code": "3363",
+          "signal_date": "2026-07-30",
+          "entry_date": "2026-07-31",
+          "exit_date": "2026-08-13",
+          "maintenance": "121.1171728157281770316204852",
+          "gross_return_pct": "24.86992715920915712799167530",
+          "net_return_pct": "24.14047755101945388591288630"
+        }
+      ]
+    },
+    {
+      "threshold": 140,
+      "holding_days": 5,
+      "events": {
+        "n": 8,
+        "mean_net_pct": "10.72701341478784921108129176",
+        "median_net_pct": "13.29787872757780741003344200",
+        "win_rate_pct": "62.500"
+      },
+      "comparison_all_stock_days": {
+        "n": 292,
+        "mean_net_pct": "-0.6288419170889244786656146304",
+        "median_net_pct": "-1.558832585134810346237004425",
+        "win_rate_pct": "43.15068493150684931506849315"
+      },
+      "event_details": [
+        {
+          "code": "3363",
+          "signal_date": "2026-07-17",
+          "entry_date": "2026-07-20",
+          "exit_date": "2026-07-24",
+          "maintenance": "133.1271261577132124983985099",
+          "gross_return_pct": "18.29268292682926829268292680",
+          "net_return_pct": "17.60165544586768732604818620"
+        },
+        {
+          "code": "3363",
+          "signal_date": "2026-07-29",
+          "entry_date": "2026-07-30",
+          "exit_date": "2026-08-05",
+          "maintenance": "132.6751263090407190521231453",
+          "gross_return_pct": "30.43478260869565217391304350",
+          "net_return_pct": "29.67282492014097302648074320"
+        },
+        {
+          "code": "3363",
+          "signal_date": "2026-10-13",
+          "entry_date": "2026-10-14",
+          "exit_date": "2026-10-20",
+          "maintenance": "137.1887246833699677466565686",
+          "gross_return_pct": "-5.484460694698354661791590490",
+          "net_return_pct": "-6.036589815637031672280163470"
+        },
+        {
+          "code": "3363",
+          "signal_date": "2026-10-15",
+          "entry_date": "2026-10-16",
+          "exit_date": "2026-10-22",
+          "maintenance": "131.5813204837296057311372828",
+          "gross_return_pct": "-3.435114503816793893129770990",
+          "net_return_pct": "-3.999215240419806356095236040"
+        },
+        {
+          "code": "3363",
+          "signal_date": "2026-10-22",
+          "entry_date": "2026-10-27",
+          "exit_date": "2026-11-02",
+          "maintenance": "129.8202514371072156933602287",
+          "gross_return_pct": "-11.92307692307692307692307692",
+          "net_return_pct": "-12.43759373661762757301614430"
+        },
+        {
+          "code": "2308",
+          "signal_date": "2026-07-29",
+          "entry_date": "2026-07-30",
+          "exit_date": "2026-08-05",
+          "maintenance": "137.4439198259622094808891249",
+          "gross_return_pct": "9.634551495016611295681063100",
+          "net_return_pct": "8.994102009287927494018697800"
+        },
+        {
+          "code": "8039",
+          "signal_date": "2026-07-30",
+          "entry_date": "2026-07-31",
+          "exit_date": "2026-08-06",
+          "maintenance": "138.2690825932884150617180720",
+          "gross_return_pct": "26.31578947368421052631578950",
+          "net_return_pct": "25.57789360687336335196029870"
+        },
+        {
+          "code": "2454",
+          "signal_date": "2026-07-29",
+          "entry_date": "2026-07-30",
+          "exit_date": "2026-08-05",
+          "maintenance": "137.4800974759140671934688049",
+          "gross_return_pct": "27.18600953895071542130365660",
+          "net_return_pct": "26.44303012880730809153395200"
+        }
+      ]
+    },
+    {
+      "threshold": 140,
+      "holding_days": 10,
+      "events": {
+        "n": 7,
+        "mean_net_pct": "14.20173546721017000973815939",
+        "median_net_pct": "18.24208642219720619048089030",
+        "win_rate_pct": "57.14285714285714285714285714"
+      },
+      "comparison_all_stock_days": {
+        "n": 272,
+        "mean_net_pct": "0.2735303307546458671975941074",
+        "median_net_pct": "-1.732928595399574254705692410",
+        "win_rate_pct": "45.58823529411764705882352941"
+      },
+      "event_details": [
+        {
+          "code": "3363",
+          "signal_date": "2026-07-17",
+          "entry_date": "2026-07-20",
+          "exit_date": "2026-07-31",
+          "maintenance": "133.1271261577132124983985099",
+          "gross_return_pct": "-2.337398373983739837398373980",
+          "net_return_pct": "-2.907911612131574295247158980"
+        },
+        {
+          "code": "3363",
+          "signal_date": "2026-07-29",
+          "entry_date": "2026-07-30",
+          "exit_date": "2026-08-12",
+          "maintenance": "132.6751263090407190521231453",
+          "gross_return_pct": "36.95652173913043478260869570",
+          "net_return_pct": "36.15646616614802167780478040"
+        },
+        {
+          "code": "3363",
+          "signal_date": "2026-10-13",
+          "entry_date": "2026-10-14",
+          "exit_date": "2026-10-29",
+          "maintenance": "137.1887246833699677466565686",
+          "gross_return_pct": "-10.42047531992687385740402194",
+          "net_return_pct": "-10.94376984460763156560402341"
+        },
+        {
+          "code": "3363",
+          "signal_date": "2026-10-15",
+          "entry_date": "2026-10-16",
+          "exit_date": "2026-11-02",
+          "maintenance": "131.5813204837296057311372828",
+          "gross_return_pct": "-12.59541984732824427480916031",
+          "net_return_pct": "-13.10600905160527927093205160"
+        },
+        {
+          "code": "2308",
+          "signal_date": "2026-07-29",
+          "entry_date": "2026-07-30",
+          "exit_date": "2026-08-12",
+          "maintenance": "137.4439198259622094808891249",
+          "gross_return_pct": "18.93687707641196013289036540",
+          "net_return_pct": "18.24208642219720619048089030"
+        },
+        {
+          "code": "8039",
+          "signal_date": "2026-07-30",
+          "entry_date": "2026-07-31",
+          "exit_date": "2026-08-13",
+          "maintenance": "138.2690825932884150617180720",
+          "gross_return_pct": "45.90643274853801169590643270",
+          "net_return_pct": "45.05409469868011183478747460"
+        },
+        {
+          "code": "2454",
+          "signal_date": "2026-07-29",
+          "entry_date": "2026-07-30",
+          "exit_date": "2026-08-12",
+          "maintenance": "137.4800974759140671934688049",
+          "gross_return_pct": "27.66295707472178060413354530",
+          "net_return_pct": "26.91719149179033549687720440"
+        }
+      ]
+    },
+    {
+      "threshold": 150,
+      "holding_days": 5,
+      "events": {
+        "n": 13,
+        "mean_net_pct": "4.325799023256585160630399859",
+        "median_net_pct": "3.239518301804543909544284000",
+        "win_rate_pct": "53.84615384615384615384615385"
+      },
+      "comparison_all_stock_days": {
+        "n": 292,
+        "mean_net_pct": "-0.6288419170889244786656146304",
+        "median_net_pct": "-1.558832585134810346237004425",
+        "win_rate_pct": "43.15068493150684931506849315"
+      },
+      "event_details": [
+        {
+          "code": "3363",
+          "signal_date": "2026-07-16",
+          "entry_date": "2026-07-17",
+          "exit_date": "2026-07-23",
+          "maintenance": "145.9575528901693241430209746",
+          "gross_return_pct": "13.48747591522157996146435450",
+          "net_return_pct": "12.82451889487153253627068900"
+        },
+        {
+          "code": "3363",
+          "signal_date": "2026-07-28",
+          "entry_date": "2026-07-29",
+          "exit_date": "2026-08-04",
+          "maintenance": "145.8755285546948745338037450",
+          "gross_return_pct": "5.037313432835820895522388100",
+          "net_return_pct": "4.423719520578697743774822400"
+        },
+        {
+          "code": "3363",
+          "signal_date": "2026-10-12",
+          "entry_date": "2026-10-13",
+          "exit_date": "2026-10-19",
+          "maintenance": "149.1486026843777138664134821",
+          "gross_return_pct": "-7.917383820998278829604130810",
+          "net_return_pct": "-8.455300594243564366560783410"
+        },
+        {
+          "code": "2308",
+          "signal_date": "2026-07-28",
+          "entry_date": "2026-07-29",
+          "exit_date": "2026-08-04",
+          "maintenance": "142.6260828140409670708256825",
+          "gross_return_pct": "3.846153846153846153846153800",
+          "net_return_pct": "3.239518301804543909544284000"
+        },
+        {
+          "code": "2308",
+          "signal_date": "2026-10-15",
+          "entry_date": "2026-10-16",
+          "exit_date": "2026-10-22",
+          "maintenance": "148.6871757044014866530248983",
+          "gross_return_pct": "-5.454545454545454545454545450",
+          "net_return_pct": "-6.006849330612967430502443110"
+        },
+        {
+          "code": "2308",
+          "signal_date": "2026-10-20",
+          "entry_date": "2026-10-21",
+          "exit_date": "2026-10-29",
+          "maintenance": "147.5047982528415735052844325",
+          "gross_return_pct": "-8.923076923076923076923076920",
+          "net_return_pct": "-9.455118763454385193407087210"
+        },
+        {
+          "code": "8039",
+          "signal_date": "2026-07-29",
+          "entry_date": "2026-07-30",
+          "exit_date": "2026-08-05",
+          "maintenance": "145.3208799440893507346903206",
+          "gross_return_pct": "39.24050632911392405063291140",
+          "net_return_pct": "38.42710845905344377932332500"
+        },
+        {
+          "code": "8039",
+          "signal_date": "2026-09-17",
+          "entry_date": "2026-09-18",
+          "exit_date": "2026-09-24",
+          "maintenance": "147.4915840970412583802741466",
+          "gross_return_pct": "-0.7677543186180422264875239900",
+          "net_return_pct": "-1.347436908164023655925622690"
+        },
+        {
+          "code": "8039",
+          "signal_date": "2026-09-23",
+          "entry_date": "2026-09-24",
+          "exit_date": "2026-10-02",
+          "maintenance": "148.8275501236932311387826197",
+          "gross_return_pct": "15.85127201565557729941291590",
+          "net_return_pct": "15.17450646527328693597924330"
+        },
+        {
+          "code": "8039",
+          "signal_date": "2026-10-27",
+          "entry_date": "2026-10-28",
+          "exit_date": "2026-11-03",
+          "maintenance": "145.9665941027673722019384545",
+          "gross_return_pct": "-16.94915254237288135593220339",
+          "net_return_pct": "-17.43430865254300757014474713"
+        },
+        {
+          "code": "2454",
+          "signal_date": "2026-07-17",
+          "entry_date": "2026-07-20",
+          "exit_date": "2026-07-24",
+          "maintenance": "142.3502703152391392095493681",
+          "gross_return_pct": "11.77347242921013412816691510",
+          "net_return_pct": "11.12052806122363560391419870"
+        },
+        {
+          "code": "2454",
+          "signal_date": "2026-07-28",
+          "entry_date": "2026-07-29",
+          "exit_date": "2026-08-04",
+          "maintenance": "142.9526324242908722696382692",
+          "gross_return_pct": "16.59125188536953242835595780",
+          "net_return_pct": "15.91016361262877624121674880"
+        },
+        {
+          "code": "2454",
+          "signal_date": "2026-10-22",
+          "entry_date": "2026-10-27",
+          "exit_date": "2026-11-02",
+          "maintenance": "147.7460967324270248904240135",
+          "gross_return_pct": "-1.610904584882280049566294920",
+          "net_return_pct": "-2.185661764080361445287429480"
+        }
+      ]
+    },
+    {
+      "threshold": 150,
+      "holding_days": 10,
+      "events": {
+        "n": 10,
+        "mean_net_pct": "8.37140005235696886594361876",
+        "median_net_pct": "13.71422988553978013401320265",
+        "win_rate_pct": "70.0"
+      },
+      "comparison_all_stock_days": {
+        "n": 272,
+        "mean_net_pct": "0.2735303307546458671975941074",
+        "median_net_pct": "-1.732928595399574254705692410",
+        "win_rate_pct": "45.58823529411764705882352941"
+      },
+      "event_details": [
+        {
+          "code": "3363",
+          "signal_date": "2026-07-16",
+          "entry_date": "2026-07-17",
+          "exit_date": "2026-07-30",
+          "maintenance": "145.9575528901693241430209746",
+          "gross_return_pct": "-15.79961464354527938342967245",
+          "net_return_pct": "-16.29148598122434682792819846"
+        },
+        {
+          "code": "3363",
+          "signal_date": "2026-07-28",
+          "entry_date": "2026-07-29",
+          "exit_date": "2026-08-11",
+          "maintenance": "145.8755285546948745338037450",
+          "gross_return_pct": "13.05970149253731343283582090",
+          "net_return_pct": "12.39924339159980609720700240"
+        },
+        {
+          "code": "3363",
+          "signal_date": "2026-10-12",
+          "entry_date": "2026-10-13",
+          "exit_date": "2026-10-28",
+          "maintenance": "149.1486026843777138664134821",
+          "gross_return_pct": "-8.261617900172117039586919100",
+          "net_return_pct": "-8.797523769592186555844668340"
+        },
+        {
+          "code": "2308",
+          "signal_date": "2026-07-28",
+          "entry_date": "2026-07-29",
+          "exit_date": "2026-08-11",
+          "maintenance": "142.6260828140409670708256825",
+          "gross_return_pct": "15.70512820512820512820512820",
+          "net_return_pct": "15.02921637947975417081940290"
+        },
+        {
+          "code": "2308",
+          "signal_date": "2026-10-15",
+          "entry_date": "2026-10-16",
+          "exit_date": "2026-11-02",
+          "maintenance": "148.6871757044014866530248983",
+          "gross_return_pct": "-17.87878787878787878787878788",
+          "net_return_pct": "-18.35851336088498132585308360"
+        },
+        {
+          "code": "8039",
+          "signal_date": "2026-07-29",
+          "entry_date": "2026-07-30",
+          "exit_date": "2026-08-12",
+          "maintenance": "145.3208799440893507346903206",
+          "gross_return_pct": "43.67088607594936708860759490",
+          "net_return_pct": "42.83160736456878062684724900"
+        },
+        {
+          "code": "8039",
+          "signal_date": "2026-09-17",
+          "entry_date": "2026-09-18",
+          "exit_date": "2026-10-05",
+          "maintenance": "147.4915840970412583802741466",
+          "gross_return_pct": "16.50671785028790786948176580",
+          "net_return_pct": "15.82612339795829330919370800"
+        },
+        {
+          "code": "8039",
+          "signal_date": "2026-09-23",
+          "entry_date": "2026-09-24",
+          "exit_date": "2026-10-12",
+          "maintenance": "148.8275501236932311387826197",
+          "gross_return_pct": "15.85127201565557729941291590",
+          "net_return_pct": "15.17450646527328693597924330"
+        },
+        {
+          "code": "2454",
+          "signal_date": "2026-07-17",
+          "entry_date": "2026-07-20",
+          "exit_date": "2026-07-31",
+          "maintenance": "142.3502703152391392095493681",
+          "gross_return_pct": "5.961251862891207153502235500",
+          "net_return_pct": "5.342260602040006552510660400"
+        },
+        {
+          "code": "2454",
+          "signal_date": "2026-07-28",
+          "entry_date": "2026-07-29",
+          "exit_date": "2026-08-11",
+          "maintenance": "142.9526324242908722696382692",
+          "gross_return_pct": "21.26696832579185520361990950",
+          "net_return_pct": "20.55856603435127567650487200"
+        }
+      ]
+    }
+  ],
+  "quality": {
+    "3363": {
+      "days": 79,
+      "blocked": null,
+      "flags": [
+        "current_day_preliminary",
+        "finance_ratio_assumed",
+        "individual_not_account_maintenance",
+        "non_point_in_time_source",
+        "share_action_coverage_unverified",
+        "share_unit_assumed_1000",
+        "uncalibrated",
+        "user_specified_start_date",
+        "warmup_unresolved"
+      ]
+    },
+    "2308": {
+      "days": 79,
+      "blocked": null,
+      "flags": [
+        "current_day_preliminary",
+        "finance_ratio_assumed",
+        "individual_not_account_maintenance",
+        "non_point_in_time_source",
+        "share_action_coverage_unverified",
+        "share_unit_assumed_1000",
+        "uncalibrated",
+        "user_specified_start_date",
+        "warmup_unresolved"
+      ]
+    },
+    "8039": {
+      "days": 79,
+      "blocked": null,
+      "flags": [
+        "current_day_preliminary",
+        "finance_ratio_assumed",
+        "individual_not_account_maintenance",
+        "non_point_in_time_source",
+        "share_action_coverage_unverified",
+        "share_unit_assumed_1000",
+        "uncalibrated",
+        "user_specified_start_date",
+        "warmup_unresolved"
+      ]
+    },
+    "2454": {
+      "days": 79,
+      "blocked": null,
+      "flags": [
+        "current_day_preliminary",
+        "finance_ratio_assumed",
+        "individual_not_account_maintenance",
+        "non_point_in_time_source",
+        "share_action_coverage_unverified",
+        "share_unit_assumed_1000",
+        "uncalibrated",
+        "user_specified_start_date",
+        "warmup_unresolved"
+      ]
+    }
+  },
+  "limitations": [
+    "僅探索指定股票，不是市值前500大或代表性樣本",
+    "歷史資料及日曆可能事後修訂，非 point-in-time",
+    "暖機起點與融資成數為假設，未校準",
+    "未處理所有公司行動或漲跌停無法成交",
+    "事件視窗可重疊，控制組為同期間全部可用股日，非因果比較",
+    "忽略滑價，費率假設買賣各0.1425%、賣出稅0.3%；實際費率可能不同"
+  ]
+}
