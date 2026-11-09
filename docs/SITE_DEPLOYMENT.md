@@ -21,7 +21,7 @@ python scripts/build-site.py .local/site .local/pages-preview
 
 1. 將應用程式及 `.github/workflows/margin-pages.yml` 放上預設分支。
 2. 在 GitHub Settings → Pages 將發布來源改為 **GitHub Actions**。
-3. 新增 Actions repository secret **SITE_STATE_KEY**。使用本機產生的隨機密碼，不要將它加入 Git、Release 或工作流程輸出。
+3. 新增 Actions 環境 **site-compute**，部署分支只允許 `main`。將 **SITE_STATE_KEY** 存為此環境的 Secret。使用本機產生的隨機金鑰，不要將它加入 Git、Release 或工作流程輸出。
 4. 建立標籤 **site-state-v1** 的 GitHub Release，上傳加密資產 **state-bootstrap.json.gz.enc**。建立方式如下，選擇最新一次驗證過的 `site-seed.json.gz`。
 
 ```powershell
@@ -29,6 +29,17 @@ node scripts/site-state.mjs seal .local/site/site-seed.json.gz .local/site/state
 ```
 
 5. 在 Actions 執行 **Verify and publish margin history**。成功後確認網站首頁能開啟個股，並確認 publish job 的公開版本與歷史檔雜湊驗證通過。接著確認一次自然排程成功，才視為每日更新已啟用。
+
+更新工作只有讀取儲存庫的權限，金鑰只注入解密與加密兩個步驟。建站前清除明文運算包。獨立的檢查點工作驗證密文雜湊後寫入 Release，發布工作只取得 Pages 發布權限。Actions 固定到 commit SHA，Python wheel 固定版本與雜湊，前端依賴使用 npm 鎖定檔。
+
+初次上傳前，解密待上傳的檔案並與經驗證的種子比對。可以在本機用下列命令驗證運算包、網站檔案類型和常見敏感內容。指定 `--key-file` 可一併確認輸出不含本機金鑰原文。
+
+```powershell
+python scripts/verify-site-export.py seed .local/site/site-seed.json.gz --key-file .local/site/SITE_STATE_KEY.txt
+python scripts/verify-site-export.py pages .local/pages-preview --key-file .local/site/SITE_STATE_KEY.txt
+```
+
+公開 Release 上的密文可由訪客下載。金鑰疑似外洩時，停用工作流程，使用新金鑰重新加密已驗證的種子和保留的檢查點，替換雲端檔案與 Secret 後再啟用。已被下載的舊密文無法收回。
 
 UTC 12:15、14:15、23:15 分別對應台北時間 20:15、22:15、07:15。交易日由兩市場的月指數報表驗證。每次回查最近五個已知交易日並補到最新可取得日。兩市場價量與融資報表齊備後才能新增該日。公司行動來源的錯誤會中止工作流程。交易日未公布的情況保留下一次查詢資格，個股未知原因以品質欄標示。
 

@@ -1,0 +1,9 @@
+# GitHub Pages updater (CPython 3.12 on Linux x86_64).
+# Wheels are locked to the SHA-256 digests published by PyPI.
+SQLAlchemy==2.1.8 \
+    --hash=sha256:6b9844ecf59d389648cf3ce2b387475f81b02c2d32f16b95a554ca535a68ba13 \
+    --hash=sha256:69aea77b5d8a64e95d01fd7ec54985c84b4a8ef3cac3108e9271145441400c1b
+python-dotenv==1.2.4 \
+    --hash=sha256:42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc
+typing-extensions==4.16.0 \
+    --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
