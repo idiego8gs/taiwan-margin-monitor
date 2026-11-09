@@ -3,7 +3,6 @@ name: Verify and publish margin history
 on:
   schedule:
     - cron: '15 12,14,23 * * *'
-    - cron: '41 6 9 11 *' # temporary verification
   workflow_dispatch:
     inputs:
       through:
