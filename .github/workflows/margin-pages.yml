@@ -1,0 +1,159 @@
+name: Verify and publish margin history
+
+on:
+  schedule:
+    - cron: '15 12,14,23 * * *'
+  workflow_dispatch:
+    inputs:
+      through:
+        description: Optional fetch cutoff, YYYY-MM-DD
+        type: string
+      restore_snapshot:
+        description: Restore an existing 64-character snapshot ID
+        type: string
+
+concurrency:
+  group: margin-pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PAGES_URL: https://idiego8gs.github.io/taiwan-margin-monitor
+  SITE_RELEASE: site-state-v1
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    outputs:
+      deploy: ${{ steps.data.outputs.deploy }}
+      snapshot: ${{ steps.data.outputs.snapshot }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: python -m pip install -r backend/requirements.txt
+      - name: Fetch, validate and calculate
+        id: data
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SITE_STATE_KEY: ${{ secrets.SITE_STATE_KEY }}
+          FETCH_THROUGH: ${{ inputs.through }}
+          RESTORE_SNAPSHOT: ${{ inputs.restore_snapshot }}
+          SITE_WORKFLOW_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PYTHONPATH: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$SITE_STATE_KEY" ]]; then
+            echo "::error::Configure the SITE_STATE_KEY repository secret before publishing."
+            exit 1
+          fi
+          work="$(mktemp -d)"
+          echo "SITE_TEMP=$work" >> "$GITHUB_ENV"
+          http="$(curl --silent --show-error --location --retry 2 --max-time 45 \
+            --write-out '%{http_code}' --output "$work/live.json" "$PAGES_URL/data/latest.json")"
+          live=""
+          case "$http" in
+            200) live="$(jq -er '.snapshot_id | select(test("^[a-f0-9]{64}$"))' "$work/live.json")";;
+            404) ;;
+            *) echo "::error::Cannot confirm published snapshot ($http)"; exit 1;;
+          esac
+          selected="${RESTORE_SNAPSHOT:-$live}"
+          if [[ -n "$selected" && ! "$selected" =~ ^[a-f0-9]{64}$ ]]; then
+            echo "::error::Invalid snapshot ID"
+            exit 1
+          fi
+          asset="state-${selected:-bootstrap}.json.gz.gpg"
+          gh release download "$SITE_RELEASE" --pattern "$asset" --dir "$work"
+          printf '%s' "$SITE_STATE_KEY" | gpg --batch --yes --pinentry-mode loopback \
+            --passphrase-fd 0 --output "$work/seed.json.gz" --decrypt "$work/$asset"
+          if [[ -n "$RESTORE_SNAPSHOT" ]]; then
+            python -m app.site_snapshot --root "$work/data" --seed "$work/seed.json.gz"
+            cp "$work/seed.json.gz" "$work/next.json.gz"
+          else
+            cutoff=()
+            if [[ -n "$FETCH_THROUGH" ]]; then cutoff=(--through "$FETCH_THROUGH"); fi
+            python -m app.site_update --seed "$work/seed.json.gz" \
+              --output "$work/next.json.gz" --root "$work/data" "${cutoff[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          snapshot="$(jq -er '.snapshot_id | select(test("^[a-f0-9]{64}$"))' "$work/data/latest.json")"
+          if [[ -n "$RESTORE_SNAPSHOT" && "$snapshot" != "$RESTORE_SNAPSHOT" ]]; then
+            echo "::error::Restored snapshot fingerprint differs from the requested version."
+            exit 1
+          fi
+          echo "snapshot=$snapshot" >> "$GITHUB_OUTPUT"
+          if [[ "$snapshot" == "$live" && "$GITHUB_EVENT_NAME" == schedule ]]; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "deploy=true" >> "$GITHUB_OUTPUT"
+      - name: Verify stock files and build static pages
+        if: steps.data.outputs.deploy == 'true'
+        run: |
+          npm ci
+          python scripts/build-site.py "$SITE_TEMP/data" "$SITE_TEMP/pages"
+      - name: Save encrypted checkpoint for the new snapshot
+        if: steps.data.outputs.deploy == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SITE_STATE_KEY: ${{ secrets.SITE_STATE_KEY }}
+          SNAPSHOT_ID: ${{ steps.data.outputs.snapshot }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset="state-$SNAPSHOT_ID.json.gz.gpg"
+          if ! gh release view "$SITE_RELEASE" --json assets --jq '.assets[].name' | grep -Fx "$asset" >/dev/null; then
+            printf '%s' "$SITE_STATE_KEY" | gpg --batch --yes --pinentry-mode loopback \
+              --passphrase-fd 0 --symmetric --cipher-algo AES256 \
+              --output "$SITE_TEMP/$asset" "$SITE_TEMP/next.json.gz"
+            gh release upload "$SITE_RELEASE" "$SITE_TEMP/$asset"
+          fi
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.data.outputs.deploy == 'true'
+        with:
+          path: ${{ env.SITE_TEMP }}/pages
+
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
+      - name: Verify the public version and a stock history
+        env:
+          SNAPSHOT_ID: ${{ needs.prepare.outputs.snapshot }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..12}; do
+            if [[ "$(curl -fsS --max-time 15 "$PAGES_URL/data/latest.json?$SNAPSHOT_ID" | jq -r .snapshot_id || true)" == "$SNAPSHOT_ID" ]]; then
+              index="$(curl -fsS "$PAGES_URL/data/snapshots/$SNAPSHOT_ID/index.json")"
+              jq -e --arg version "$SNAPSHOT_ID" '.snapshot_id == $version and (.stocks | length == 500)' <<< "$index"
+              sid="$(jq -er '.stocks[0].security_id' <<< "$index")"
+              expected="$(jq -er '.stocks[0].history_sha256' <<< "$index")"
+              curl -fsS "$PAGES_URL/stocks/s-$sid/" >/dev/null
+              curl -fsS "$PAGES_URL/data/snapshots/$SNAPSHOT_ID/stocks/$sid.json" | sha256sum --check <(printf '%s  -\n' "$expected")
+              echo "Public snapshot verified: $SNAPSHOT_ID" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::The public site did not confirm the intended version."
+          exit 1
