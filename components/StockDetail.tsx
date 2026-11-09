@@ -9,7 +9,7 @@ const dayLabel = (time: Time) => typeof time === 'string' ? time :
   typeof time === 'number' ? new Date(time * 1000).toISOString().slice(0, 10) :
   `${time.year}-${String(time.month).padStart(2, '0')}-${String(time.day).padStart(2, '0')}`;
 
-function Charts({rows, onDay}: {rows: Day[]; onDay: (row: Day | null) => void}) {
+function Charts({rows, onDay, bridges}: {rows: Day[]; onDay: (row: Day | null) => void; bridges: boolean}) {
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!container.current || !rows.length) return;
@@ -49,6 +49,21 @@ function Charts({rows, onDay}: {rows: Day[]; onDay: (row: Day | null) => void}) 
         segment = row.segment;
       }
       flush();
+      if (bridges) {
+        for (let i = 1; i < rows.length; i++) {
+          const previous = rows[i - 1], current = rows[i];
+          if (previous[key] == null || current[key] == null || previous.segment == null ||
+              current.segment == null || previous.segment === current.segment) continue;
+          const connector = chart.addSeries(LineSeries, {
+            title: '分段接點', color, lineStyle: LineStyle.Dashed, lineWidth: 1,
+            crosshairMarkerVisible: false, priceLineVisible: false, lastValueVisible: false,
+          }, pane);
+          connector.setData([
+            {time: previous.date, value: Number(previous[key])},
+            {time: current.date, value: Number(current[key])},
+          ]);
+        }
+      }
     }
     const balance = chart.addSeries(HistogramSeries, {title: '融資餘額', color: '#5da6d6'}, 2);
     balance.setData(rows.map(row => row.balance == null ? {time: row.date} : {time: row.date, value: row.balance}));
@@ -63,7 +78,7 @@ function Charts({rows, onDay}: {rows: Day[]; onDay: (row: Day | null) => void}) 
     chart.subscribeClick(event => selectDay(event.time));
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [rows, onDay]);
+  }, [rows, onDay, bridges]);
   return <div ref={container} aria-label="股價、維持率、融資餘額及成交量圖表"/>;
 }
 
@@ -73,6 +88,8 @@ export default function StockDetail({id}: {id: string}) {
   const [range, setRange] = useState<keyof typeof ranges>('1Y');
   const [point, setPoint] = useState<Day | null>(null);
   const [page, setPage] = useState(1);
+  const [bridges, setBridges] = useState(true);
+  const [onlyIssues, setOnlyIssues] = useState(false);
   useEffect(() => {
     let active = true;
     async function load() {
@@ -99,9 +116,18 @@ export default function StockDetail({id}: {id: string}) {
     const start = end.toISOString().slice(0, 10);
     return data.items.filter(row => row.date >= start);
   }, [data, range]);
-  const reversed = useMemo(() => [...rows].reverse(), [rows]);
-  const selected = point || rows.at(-1);
+  const issues = useMemo(() => rows.filter((row, index) =>
+    !['estimated', 'warmup', 'not_applicable'].includes(row.quality) ||
+    (index > 0 && row.segment != null && rows[index - 1].segment != null && row.segment !== rows[index - 1].segment)),
+  [rows]);
+  const reversed = useMemo(() => [...(onlyIssues ? issues : rows)].reverse(), [rows, issues, onlyIssues]);
+  const selected = point && rows.includes(point) ? point : rows.at(-1);
   const quality = (row?: Day) => row ? labels[row.quality] || row.quality : '無可用資料';
+  const selectRow = (row: Day) => {
+    setPoint(row);
+    const index = reversed.findIndex(item => item.date === row.date);
+    if (index >= 0) setPage(Math.floor(index / 30) + 1);
+  };
 
   return <main className="mx-auto max-w-6xl px-4 py-8">
     <a className="text-teal-300" href={base + '/'}>← 股票池</a>
@@ -113,23 +139,64 @@ export default function StockDetail({id}: {id: string}) {
         行情 {data.stock.latest_quote_date || '—'} · 最後可估算 {data.stock.latest_estimate_date || '—'} · {data.manifest.model} · {data.manifest.snapshot_id.slice(0, 12)}
       </p>
       <p className="mb-5 text-sm text-slate-400">收盤價模型，假設融資成數 60%，未校準。130% 為模型參考線。</p>
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          ['日期', selected?.date || '—'],
+          ['收盤價', fmt(selected?.close)],
+          ['推估成本', fmt(selected?.cost)],
+          ['估計維持率', selected?.maintenance == null ? '—' : fmt(selected.maintenance) + '%'],
+        ].map(([label, value]) => <div key={label} className="panel p-3">
+          <div className="text-xs text-slate-400">{label}</div>
+          <div className="mt-1 text-lg font-semibold text-white">{value}</div>
+        </div>)}
+      </div>
       <div className="panel mb-5 p-4">
-        <div className="flex flex-wrap gap-2" aria-label="日期區間">
+        <div className="flex flex-wrap items-center gap-2" aria-label="日期區間">
           {(Object.keys(ranges) as (keyof typeof ranges)[]).map(key =>
             <button key={key} aria-pressed={range === key} className={range === key ? 'border-teal-400 text-teal-200' : ''}
               onClick={() => {setRange(key); setPoint(null); setPage(1);}}>{key}</button>)}
         </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-300">
+          <label htmlFor="history-date">查看日期</label>
+          <select id="history-date" value={selected?.date || ''} onChange={event => {
+            const row = rows.find(item => item.date === event.target.value);
+            if (row) selectRow(row);
+          }}>
+            {[...rows].reverse().map(row => <option key={row.date} value={row.date}>{row.date}</option>)}
+          </select>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={bridges} onChange={event => setBridges(event.target.checked)}/>
+            以虛線連接相鄰成本段
+          </label>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-slate-400">虛線僅連接相鄰日期的兩個獨立估計值，並非補回缺失資料；有缺值的日期仍保留空白。移動游標或點選圖表可查看當日資料。</p>
         <p className="my-4 text-sm text-slate-300" aria-live="off">
           {selected?.date || '—'} · 開 {fmt(selected?.open)} · 高 {fmt(selected?.high)} · 低 {fmt(selected?.low)} · 收 {fmt(selected?.close)} ·
           成本 {fmt(selected?.cost)} · 維持率 {selected?.maintenance == null ? '—' : fmt(selected.maintenance) + '%'} ·
           130% 參考價 {fmt(selected?.reference_130)} · 餘額 {fmt(selected?.balance)} · 成交量 {fmt(selected?.volume)} · {quality(selected)}
           {selected?.action && ` · ${selected.action.reason || (selected.action.cash ? '每股現金 ' + selected.action.cash : selected.action.kind)}`}
         </p>
-        {rows.length ? <Charts rows={rows} onDay={setPoint}/> : <p className="text-amber-200">此期間缺少可用歷史資料。</p>}
+        {rows.length ? <Charts rows={rows} onDay={setPoint} bridges={bridges}/> : <p className="text-amber-200">此期間缺少可用歷史資料。</p>}
       </div>
+      <section className="panel mb-5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-semibold text-white">資料斷點與待核日期</h2>
+            <p className="mt-1 text-sm text-slate-400">所選期間有 {issues.length} 日需要留意。成本分段後會重新暖機。</p>
+          </div>
+          <button onClick={() => {setOnlyIssues(!onlyIssues); setPage(1);}}>
+            {onlyIssues ? '顯示全部日期' : '只看待核日期'}
+          </button>
+        </div>
+        {issues.length > 0 && <div className="mt-3 flex flex-wrap gap-2">
+          {issues.slice(-6).reverse().map(row => <button key={row.date} className="text-amber-200" onClick={() => selectRow(row)}>
+            {row.date} · {quality(row)}
+          </button>)}
+        </div>}
+      </section>
       <section className="panel overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-          <h2 className="font-semibold text-white">逐日資料 · {rows.length} 日</h2>
+          <h2 className="font-semibold text-white">逐日資料 · {reversed.length} 日{onlyIssues ? '（待核）' : ''}</h2>
           <button disabled={!rows.length} onClick={() => csvDownload(`${data.stock.code}-${range}.csv`, [
             ['日期', '開盤', '最高', '最低', '收盤', '成交股數', '融資餘額', '推估成本', '維持率%', '130%參考價',
               '成本段', '品質', '行情來源', '融資來源', '公司行動', '股利', '快照', '模型'],
@@ -140,8 +207,8 @@ export default function StockDetail({id}: {id: string}) {
         </div>
         <div className="overflow-x-auto"><table className="w-full whitespace-nowrap">
           <thead><tr>{['日期','收盤','推估成本','維持率','130% 參考價','融資餘額','成本段','資料來源','品質'].map(title => <th key={title}>{title}</th>)}</tr></thead>
-          <tbody>{reversed.slice((page - 1) * 30, page * 30).map(row => <tr key={row.date}>
-            <td>{row.date}</td><td>{fmt(row.close)}</td><td>{fmt(row.cost)}</td>
+          <tbody>{reversed.slice((page - 1) * 30, page * 30).map(row => <tr key={row.date} className={selected?.date === row.date ? 'bg-teal-950/40' : ''}>
+            <td><button className="border-0 p-0 text-teal-300" onClick={() => selectRow(row)}>{row.date}</button></td><td>{fmt(row.close)}</td><td>{fmt(row.cost)}</td>
             <td>{row.maintenance == null ? '—' : fmt(row.maintenance) + '%'}</td><td>{fmt(row.reference_130)}</td>
             <td>{fmt(row.balance)}</td><td>{row.segment ?? '—'}</td><td>{row.price_source || '—'} / {row.margin_source || '—'}</td>
             <td className="text-xs text-amber-200">{quality(row)}{row.warmup && row.quality !== 'warmup' ? ' · 暖機' : ''}</td>
@@ -149,8 +216,8 @@ export default function StockDetail({id}: {id: string}) {
         </table></div>
         <div className="flex justify-end gap-3 p-4 text-sm">
           <button disabled={page <= 1} onClick={() => setPage(page - 1)}>上一頁</button>
-          <span>第 {page} 頁</span>
-          <button disabled={page * 30 >= rows.length} onClick={() => setPage(page + 1)}>下一頁</button>
+          <span>第 {page} / {Math.max(1, Math.ceil(reversed.length / 30))} 頁</span>
+          <button disabled={page * 30 >= reversed.length} onClick={() => setPage(page + 1)}>下一頁</button>
         </div>
       </section>
     </>}
