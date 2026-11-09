@@ -56,7 +56,11 @@ function Charts({rows, onDay}: {rows: Day[]; onDay: (row: Day | null) => void}) 
     volume.setData(rows.map(row => row.volume == null ? {time: row.date} : {time: row.date, value: row.volume}));
     chart.panes()[0].setStretchFactor(2);
     const byDate = new Map(rows.map(row => [row.date, row]));
-    chart.subscribeCrosshairMove(event => onDay(event.time === undefined ? null : byDate.get(dayLabel(event.time)) || null));
+    function selectDay(time: Time | undefined) {
+      if (time !== undefined) onDay(byDate.get(dayLabel(time)) || null);
+    }
+    chart.subscribeCrosshairMove(event => selectDay(event.time));
+    chart.subscribeClick(event => selectDay(event.time));
     chart.timeScale().fitContent();
     return () => chart.remove();
   }, [rows, onDay]);
