@@ -22,10 +22,10 @@ python scripts/build-site.py .local/site .local/pages-preview
 1. 將應用程式及 `.github/workflows/margin-pages.yml` 放上預設分支。
 2. 在 GitHub Settings → Pages 將發布來源改為 **GitHub Actions**。
 3. 新增 Actions repository secret **SITE_STATE_KEY**。使用本機產生的隨機密碼，不要將它加入 Git、Release 或工作流程輸出。
-4. 建立標籤 **site-state-v1** 的 GitHub Release，上傳加密資產 **state-bootstrap.json.gz.gpg**。建立方式如下，選擇最新一次驗證過的 `site-seed.json.gz`。
+4. 建立標籤 **site-state-v1** 的 GitHub Release，上傳加密資產 **state-bootstrap.json.gz.enc**。建立方式如下，選擇最新一次驗證過的 `site-seed.json.gz`。
 
 ```powershell
-gpg --batch --pinentry-mode loopback --passphrase-file .local/site/SITE_STATE_KEY.txt --symmetric --cipher-algo AES256 --output .local/site/state-bootstrap.json.gz.gpg .local/site/site-seed.json.gz
+node scripts/site-state.mjs seal .local/site/site-seed.json.gz .local/site/state-bootstrap.json.gz.enc .local/site/SITE_STATE_KEY.txt
 ```
 
 5. 在 Actions 執行 **Verify and publish margin history**。成功後確認網站首頁能開啟個股，並確認 publish job 的公開版本與歷史檔雜湊驗證通過。接著確認一次自然排程成功，才視為每日更新已啟用。

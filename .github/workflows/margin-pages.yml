@@ -73,10 +73,9 @@ jobs:
             echo "::error::Invalid snapshot ID"
             exit 1
           fi
-          asset="state-${selected:-bootstrap}.json.gz.gpg"
+          asset="state-${selected:-bootstrap}.json.gz.enc"
           gh release download "$SITE_RELEASE" --pattern "$asset" --dir "$work"
-          printf '%s' "$SITE_STATE_KEY" | gpg --batch --yes --pinentry-mode loopback \
-            --passphrase-fd 0 --output "$work/seed.json.gz" --decrypt "$work/$asset"
+          node scripts/site-state.mjs open "$work/$asset" "$work/seed.json.gz"
           if [[ -n "$RESTORE_SNAPSHOT" ]]; then
             python -m app.site_snapshot --root "$work/data" --seed "$work/seed.json.gz"
             cp "$work/seed.json.gz" "$work/next.json.gz"
@@ -111,11 +110,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          asset="state-$SNAPSHOT_ID.json.gz.gpg"
+          asset="state-$SNAPSHOT_ID.json.gz.enc"
           if ! gh release view "$SITE_RELEASE" --json assets --jq '.assets[].name' | grep -Fx "$asset" >/dev/null; then
-            printf '%s' "$SITE_STATE_KEY" | gpg --batch --yes --pinentry-mode loopback \
-              --passphrase-fd 0 --symmetric --cipher-algo AES256 \
-              --output "$SITE_TEMP/$asset" "$SITE_TEMP/next.json.gz"
+            node scripts/site-state.mjs seal "$SITE_TEMP/next.json.gz" "$SITE_TEMP/$asset"
             gh release upload "$SITE_RELEASE" "$SITE_TEMP/$asset"
           fi
       - uses: actions/upload-pages-artifact@v3
