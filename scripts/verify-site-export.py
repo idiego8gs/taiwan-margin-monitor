@@ -10,7 +10,7 @@ SENSITIVE = re.compile(
     rb"-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----"
     rb"|(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})"
     rb"|(?:postgres(?:ql)?|mysql)(?:\+[a-z0-9_]+)?://[^\s:@/]+:[^\s@/]+@"
-    rb"|[A-Za-z]:[\\/](?:Users|Documents and Settings)[\\/]"
+    rb"|[A-Za-z]:[\\/]{1,2}(?:Users|Documents and Settings)[\\/]{1,2}"
     rb"|/(?:home/runner|Users/[^/]+)/"
 )
 ROOT_FILES = {
