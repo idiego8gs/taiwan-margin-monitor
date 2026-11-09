@@ -57,6 +57,11 @@ export const labels: Record<string, string> = {
   date_not_in_calendar: '交易日待核',
   unhandled_share_action: '換股條款待核',
   unhandled_ex_right: '除權條款待核',
+  par_value_change: '面額變更條款待核',
+  capital_reduction: '減資條款待核',
+  invalid_cost_input: '成本計算資料異常',
+  insufficient_data: '資料不足',
+  missing_dividend_result: '除息結果待核',
 };
 
 export async function getJSON<T>(url: string): Promise<T> {
