@@ -3,7 +3,7 @@ import argparse
 import csv
 import json
 from datetime import date
-from math import isclose, isfinite
+from math import isfinite
 from pathlib import Path
 
 
@@ -29,36 +29,24 @@ def sorted_days(rows):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
+    parser.add_argument("--rebuild", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=Path("public/data/wantgoo-market.json"))
     args = parser.parse_args()
     source = args.source
     originals = sorted_days(read_csv(source, "wantgoo_published_exclude_etf_daily.csv"))
-    audits = sorted_days(read_csv(source, "market_sample_validation.csv"))
+    reconstruction = json.loads(args.rebuild.read_text(encoding="utf-8"))
+    rebuilt = sorted_days(reconstruction["rows"])
+    rebuilt_by_day = {row["date"]: row for row in rebuilt}
     original_by_day = {row["date"]: row for row in originals}
-    audit_by_day = {row["date"]: row for row in audits}
-    threshold = 0.85
-    for audit in audits:
-        published = number(original_by_day[audit["date"]]["wantgoo_published_ratio_pct"])
-        if not isclose(published, number(audit["published_ratio_pct"]), abs_tol=1e-9):
-            raise ValueError(f"Published ratio mismatch on {audit['date']}")
-        if not 0 < number(audit["coverage_of_priced_collateral"]) <= 1:
-            raise ValueError(f"Invalid market coverage on {audit['date']}")
     rows = []
-    for original in originals:
-        day = original["date"]
-        sample = audit_by_day.get(day)
-        rows.append({
-            "date": day,
-            "publishedPct": number(original["wantgoo_published_ratio_pct"]),
-            "balance100m": number(original["published_margin_balance_thousand_ntd"]) / 100_000,
-            "sample": {
-                "pct": number(sample["sample_ratio_pct"]),
-                "errorPp": number(sample["error_pp"]),
-                "coverage": number(sample["coverage_of_priced_collateral"]),
-                "included": int(sample["known_stocks"]),
-                "total": int(sample["stocks"]),
-            } if sample else None,
-        })
+    for day in sorted(original_by_day.keys() | rebuilt_by_day.keys()):
+        original = original_by_day.get(day)
+        estimate = rebuilt_by_day.get(day, {})
+        rows.append([day, estimate.get("estimatePct"),
+                     number(original["wantgoo_published_ratio_pct"]) if original else None,
+                     estimate.get("included"), estimate.get("positive"), estimate.get("dbCoverage"),
+                     estimate.get("marketCoverage"), estimate.get("seedWeight"), estimate.get("missingMargin"),
+                     estimate.get("collateralNtd"), estimate.get("debtNtd")])
 
     paths = read_csv(source, "material_continuous_across_july.csv")
     seed = max(row["seed_date"] for row in paths)
@@ -70,8 +58,8 @@ def main():
     rollout = json.loads((source / "stock_continuous_rollout_summary.json").read_text(encoding="utf-8"))
     split = read_csv(source, "material_split_audit.csv")
     data = {
-        "version": 1,
-        "minCoverage": threshold,
+        "version": 2,
+        "rebuild": reconstruction["summary"],
         "rows": rows,
         "material": {"seedDate": seed, "rows": material},
         "stockAudit": {
@@ -87,7 +75,7 @@ def main():
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(data, ensure_ascii=False, allow_nan=False, separators=(",", ":")) + "\n", encoding="utf-8")
-    print(f"{len(rows)} published days, {len(audits)} market checks and {len(material)} material stock days")
+    print(f"{len(rebuilt)} rebuilt market dates, {len(originals)} source observations and {len(material)} material stock days")
 
 
 if __name__ == "__main__":
