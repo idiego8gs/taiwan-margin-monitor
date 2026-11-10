@@ -16,6 +16,7 @@ SENSITIVE = re.compile(
 ROOT_FILES = {
     ".nojekyll", "404.html", "index.html", "index.txt", "research.html",
     "research-results-4bdea2ad5b22.txt", "database.html", "database-status.json",
+    "market/index.html", "market/index.txt", "data/wantgoo-market.json",
 }
 ROW_FIELDS = {
     "open", "high", "low", "close", "volume", "turnover", "previous_balance",

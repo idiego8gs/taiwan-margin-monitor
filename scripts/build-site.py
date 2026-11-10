@@ -51,10 +51,14 @@ def main():
     artifact.mkdir(parents=True)
     for file in ("index.html", "index.txt", "404.html"):
         shutil.copyfile(Path("out") / file, artifact / file)
+    (artifact / "market").mkdir()
+    for file in ("index.html", "index.txt"):
+        shutil.copyfile(Path("out/market") / file, artifact / "market" / file)
     for directory in ("_next", "stocks"):
         shutil.copytree(Path("out") / directory, artifact / directory)
     (artifact / "data").mkdir()
     shutil.copyfile(data / "latest.json", artifact / "data" / "latest.json")
+    shutil.copyfile(data / "wantgoo-market.json", artifact / "data" / "wantgoo-market.json")
     shutil.copytree(data / relative, artifact / "data" / relative)
     for file in ("research.html", "research-results-4bdea2ad5b22.txt", "database.html", "database-status.json"):
         shutil.copyfile(Path("github-pages") / file, artifact / file)

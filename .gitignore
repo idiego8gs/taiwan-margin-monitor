@@ -4,7 +4,8 @@
 node_modules/
 .next/
 out/
-public/data/
+public/data/*
+!public/data/wantgoo-market.json
 *.tsbuildinfo
 __pycache__/
 .pytest_cache/

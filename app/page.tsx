@@ -34,6 +34,7 @@ export default function Home() {
       收盤價模型，假設融資成數 60%，未校準。130% 為個股模型參考線，實際追繳依投資人整戶維持率判斷。
     </p>
     <nav className="my-5 flex flex-wrap gap-4 text-sm text-teal-300">
+      <a href={base + '/market/'}>大盤維持率</a>
       <a href={isPages ? base + '/research.html' : '/research'}>1～20 日回測</a>
       {!isPages && <>
         <a href="/progress">資料進度</a><a href="/basket">合併試算</a>
