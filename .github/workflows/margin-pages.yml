@@ -121,9 +121,11 @@ jobs:
         run: |
           set -euo pipefail
           asset="state-$SNAPSHOT_ID.json.gz.enc"
-          node scripts/site-state.mjs seal "$SITE_TEMP/next.json.gz" "$SITE_TEMP/$asset"
+          # A manual site-only publish may reuse the snapshot already downloaded above.
+          mkdir -p "$SITE_TEMP/sealed"
+          node scripts/site-state.mjs seal "$SITE_TEMP/next.json.gz" "$SITE_TEMP/sealed/$asset"
           echo "artifact=encrypted-state-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
-          echo "sha256=$(sha256sum "$SITE_TEMP/$asset" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$SITE_TEMP/sealed/$asset" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Remove plaintext checkpoints
         if: always() && env.SITE_TEMP != ''
         run: rm -f -- "$SITE_TEMP/seed.json.gz" "$SITE_TEMP/next.json.gz"
@@ -146,7 +148,7 @@ jobs:
         if: steps.data.outputs.deploy == 'true'
         with:
           name: ${{ steps.seal.outputs.artifact }}
-          path: ${{ env.SITE_TEMP }}/state-${{ steps.data.outputs.snapshot }}.json.gz.enc
+          path: ${{ env.SITE_TEMP }}/sealed/state-${{ steps.data.outputs.snapshot }}.json.gz.enc
           retention-days: 1
           if-no-files-found: error
 
