@@ -33,6 +33,7 @@ jobs:
     outputs:
       deploy: ${{ steps.data.outputs.deploy }}
       snapshot: ${{ steps.data.outputs.snapshot }}
+      market_sha256: ${{ steps.market.outputs.sha256 }}
       checkpoint_artifact: ${{ steps.seal.outputs.artifact }}
       checkpoint_sha256: ${{ steps.seal.outputs.sha256 }}
     steps:
@@ -95,7 +96,8 @@ jobs:
             cutoff=()
             if [[ -n "$FETCH_THROUGH" ]]; then cutoff=(--through "$FETCH_THROUGH"); fi
             python -m app.site_update --seed "$work/seed.json.gz" \
-              --output "$work/next.json.gz" --root "$work/data" "${cutoff[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+              --output "$work/next.json.gz" --root "$work/data" \
+              --wantgoo-history public/data/wantgoo-market.json "${cutoff[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
           fi
           snapshot="$(jq -er '.snapshot_id | select(test("^[a-f0-9]{64}$"))' "$work/data/latest.json")"
           if [[ -n "$RESTORE_SNAPSHOT" && "$snapshot" != "$RESTORE_SNAPSHOT" ]]; then
@@ -111,6 +113,16 @@ jobs:
       - name: Inspect checkpoint before encryption
         if: steps.data.outputs.deploy == 'true'
         run: python scripts/verify-site-export.py seed "$SITE_TEMP/next.json.gz"
+      - name: Export the verified daily market curve
+        id: market
+        if: steps.data.outputs.deploy == 'true'
+        env:
+          PYTHONPATH: backend
+        run: |
+          set -euo pipefail
+          python -m app.wantgoo_daily export --seed "$SITE_TEMP/next.json.gz" \
+            --historical public/data/wantgoo-market.json --output "$SITE_TEMP/data/wantgoo-market.json"
+          echo "sha256=$(sha256sum "$SITE_TEMP/data/wantgoo-market.json" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Seal checkpoint for the separate upload job
         id: seal
         if: steps.data.outputs.deploy == 'true'
@@ -198,14 +210,17 @@ jobs:
     steps:
       - uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
         id: deployment
-      - name: Verify the public version and a stock history
+      - name: Verify the public stock snapshot and daily market curve
         env:
           SNAPSHOT_ID: ${{ needs.prepare.outputs.snapshot }}
+          MARKET_SHA256: ${{ needs.prepare.outputs.market_sha256 }}
         shell: bash
         run: |
           set -euo pipefail
+          [[ "$MARKET_SHA256" =~ ^[a-f0-9]{64}$ ]]
           for attempt in {1..12}; do
-            if [[ "$(curl -fsS --max-time 15 "$PAGES_URL/data/latest.json?$SNAPSHOT_ID" | jq -r .snapshot_id || true)" == "$SNAPSHOT_ID" ]]; then
+            actual_market="$(curl -fsS --max-time 15 "$PAGES_URL/data/wantgoo-market.json?$MARKET_SHA256" | sha256sum | cut -d' ' -f1 || true)"
+            if [[ "$actual_market" == "$MARKET_SHA256" && "$(curl -fsS --max-time 15 "$PAGES_URL/data/latest.json?$SNAPSHOT_ID" | jq -r .snapshot_id || true)" == "$SNAPSHOT_ID" ]]; then
               index="$(curl -fsS "$PAGES_URL/data/snapshots/$SNAPSHOT_ID/index.json")"
               jq -e --arg version "$SNAPSHOT_ID" '.snapshot_id == $version and (.stocks | length == 500)' <<< "$index"
               sid="$(jq -er '.stocks[0].security_id' <<< "$index")"

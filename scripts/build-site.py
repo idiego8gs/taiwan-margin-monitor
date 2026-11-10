@@ -41,6 +41,8 @@ def main():
     data = Path("public/data")
     data.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(args.source / "latest.json", data / "latest.json")
+    if (args.source / "wantgoo-market.json").is_file():
+        shutil.copyfile(args.source / "wantgoo-market.json", data / "wantgoo-market.json")
     relative = Path("snapshots") / version
     shutil.copytree(args.source / relative, data / relative, dirs_exist_ok=True)
     env = os.environ | {"NEXT_PUBLIC_PAGES": "1", "NEXT_TELEMETRY_DISABLED": "1"}

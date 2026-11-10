@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
@@ -17,6 +17,7 @@ from .benchmark import TPEX_URL, URL, parse_report, parse_tpex_report
 from .finmind import BASE_URL
 from .official_repair import NotPublished, number, parse_margin, parse_prices, urls
 from .site_snapshot import MARKETS, START, json_bytes, read_seed, render, write_seed
+from . import wantgoo_daily
 
 TWSE = "https://www.twse.com.tw/rwd/zh/"
 TPEX = "https://www.tpex.org.tw/www/zh-tw/bulletin/"
@@ -39,20 +40,28 @@ class SourceClient:
 
     def get(self, url, market):
         interval = 15 if market == "FinMind" else 3
-        for attempt in range(2):
+        headers = {"User-Agent": "TaiwanMarginMonitor/1.0 research"}
+        if market == 'Wantgoo':
+            headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json", "X-Requested-With": "XMLHttpRequest",
+                       "Referer": "https://www.wantgoo.com/stock/margin-trading/exclude-etf/taiex"}
+        for attempt in range(3):
             time.sleep(max(0, interval - (time.monotonic() - self.last.get(market, 0))))
             self.last[market] = time.monotonic()
             try:
-                with urlopen(Request(url, headers={"User-Agent": "TaiwanMarginMonitor/1.0 research"}), timeout=40) as response:
+                with urlopen(Request(url, headers=headers), timeout=40) as response:
                     return response.read().decode("utf-8-sig")
             except HTTPError as exc:
-                if attempt or exc.code not in (429, 500, 502, 503, 504):
+                if attempt == 2 or exc.code not in (429, 500, 502, 503, 504, 520, 521, 522, 523, 524):
                     raise
                 retry = exc.headers.get("Retry-After", "15")
                 if not retry.isdecimal() or int(retry) > 60:
                     # Leave the run retryable at the next scheduled check.
                     raise
                 time.sleep(int(retry))
+            except (URLError, TimeoutError):
+                if attempt == 2:
+                    raise
+                time.sleep(5 * (attempt + 1))
 
 
 def event_date(raw):
@@ -224,11 +233,14 @@ def apply_day(seed, market, key, quotes, margins, events, client, fallback_budge
     seed["official_dates"][market] = max(seed["official_dates"][market] or key, key)
 
 
-def refresh(seed, through, client, fallback_limit=6):
+def refresh(seed, through, client, fallback_limit=6, market_history=None):
     last = seed["official_through"] or max(
         key for stock in seed["stocks"] for key, row in stock["rows"].items() if row.get("close") is not None)
     known = sorted({key for market in MARKETS for key in seed["calendar"][market] if key <= last})
     first = date.fromisoformat(known[-5] if len(known) >= 5 else last)
+    market_state = seed.get('wantgoo_daily')
+    if market_state is not None:
+        first = min(first, date.fromisoformat(market_state['through']) + timedelta(days=1))
     if through < first:
         return {"status": "unchanged", "through": last}
     calendars = {market: trading_days(client, market, first, through) for market in MARKETS}
@@ -252,6 +264,10 @@ def refresh(seed, through, client, fallback_limit=6):
             break
         for market, (quotes, margins) in reports.items():
             apply_day(seed, market, key, quotes, margins, action_data[market][0], client, budget)
+            if market == 'TWSE':
+                if 'wantgoo_daily' not in seed and key >= wantgoo_daily.START:
+                    wantgoo_daily.initialize(seed, market_history)
+                wantgoo_daily.advance(seed, key, quotes, margins)
         seed["official_through"] = max(seed["official_through"] or key, key)
     if seed["official_through"] and not pending:
         seed["action_evidence"] = {market: data[1] for market, data in action_data.items()}
@@ -265,6 +281,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--through", type=date.fromisoformat)
+    parser.add_argument("--wantgoo-history", type=Path)
     args = parser.parse_args()
     local = datetime.now(ZoneInfo("Asia/Taipei"))
     through = args.through or local.date() - timedelta(days=local.hour < 20)
@@ -272,9 +289,14 @@ def main():
         parser.error("cannot fetch a future trading date")
     seed = read_seed(args.seed)
     before = sha256(json_bytes(seed)).hexdigest()
+    market_history = json.loads(args.wantgoo_history.read_bytes()) if args.wantgoo_history else None
+    wantgoo_daily.initialize(seed, market_history)
     client = SourceClient()
-    result = refresh(seed, through, client)
+    result = refresh(seed, through, client, market_history=market_history)
     refresh_taiex(seed, client)
+    wantgoo_daily.refresh_reference(seed, client)
+    if 'wantgoo_daily' in seed:
+        result['market_through'] = seed['wantgoo_daily']['through']
     # Keep the existing publication if neither inputs nor available dates changed.
     if sha256(json_bytes(seed)).hexdigest() != before and seed["official_through"]:
         seed["workflow_run"] = os.getenv("SITE_WORKFLOW_RUN")

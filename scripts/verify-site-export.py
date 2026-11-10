@@ -2,6 +2,7 @@
 import argparse
 import gzip
 import json
+import math
 import re
 from pathlib import Path
 
@@ -30,7 +31,7 @@ STOCK_FIELDS = {
 EVENT_FIELDS = {"kind", "source", "reason", "multiplier", "cash"}
 SEED_FIELDS = {
     "format", "universe_date", "universe_id", "calendar", "stocks", "official_through",
-    "official_dates", "action_evidence", "workflow_run", "taiex_close",
+    "official_dates", "action_evidence", "workflow_run", "taiex_close", "wantgoo_daily",
 }
 MARKETS = {"TWSE", "TPEx"}
 HASH = re.compile(r"[a-f0-9]{64}\Z")
@@ -56,6 +57,41 @@ def dated_records(records, allowed):
             raise ValueError("Nested checkpoint record data")
 
 
+def validate_market_state(seed):
+    state = seed['wantgoo_daily']
+    fields(state, {'format', 'baseVersion', 'through', 'positions', 'rows', 'references'})
+    if state['format'] != 1 or not HASH.fullmatch(state['baseVersion']):
+        raise ValueError('Invalid market cost state version')
+    codes = {s['code'] for s in seed['stocks'] if s['market'] == 'TWSE'}
+    if set(state['positions']) != codes:
+        raise ValueError('Market cost state stock scope changed')
+    def finite(value):
+        return type(value) in (float, int) and math.isfinite(value)
+    for code, (cost, weight, lots) in state['positions'].items():
+        if not re.fullmatch(r'[1-9][0-9]{3}', code) or (lots is not None and (type(lots) is not int or lots < 0)):
+            raise ValueError('Invalid market position')
+        if (cost is None and weight is not None) or (cost is not None and (
+                not finite(cost) or cost <= 0 or not finite(weight) or not 0 <= weight <= 1 or not lots)):
+            raise ValueError('Invalid market position cost')
+    start = '2026-11-09'
+    last = start
+    dates = set()
+    for day, ratio, original, included, positive, coverage, market_coverage, weight, missing, value, debt in state['rows']:
+        if (not DATE.fullmatch(day) or day <= last or original is not None or
+                any(type(n) is not int or n < 0 for n in (included, positive, missing, value, debt)) or
+                not 0 < included <= positive <= len(codes) or not debt or not value or
+                any(not finite(n) or not 0 <= n <= 1 for n in (coverage, weight)) or
+                (market_coverage is not None and (not finite(market_coverage) or not 0 < market_coverage <= 1)) or
+                not finite(ratio) or not math.isclose(ratio, 100 * value / debt, abs_tol=.0001)):
+            raise ValueError('Invalid daily market aggregate')
+        dates.add(day)
+        last = day
+    if last != state['through'] or (last != start and last > (seed['official_dates']['TWSE'] or '')):
+        raise ValueError('Market cursor exceeds verified dates')
+    if any(day not in dates or not finite(ratio) or not 0 < ratio < 1000 for day, ratio in state['references'].items()):
+        raise ValueError('Invalid market reference dates')
+
+
 def check_seed(path, key):
     with gzip.open(path, "rb") as stream:
         content = stream.read()
@@ -69,6 +105,8 @@ def check_seed(path, key):
         fields(stock, STOCK_FIELDS)
         dated_records(stock["rows"], ROW_FIELDS)
         dated_records(stock["events"], EVENT_FIELDS)
+    if 'wantgoo_daily' in seed:
+        validate_market_state(seed)
     for day, close in seed.get("taiex_close", {}).items():
         if (not DATE.fullmatch(day) or day > seed["official_through"] or
                 not isinstance(close, str) or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", close) or

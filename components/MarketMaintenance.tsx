@@ -14,6 +14,7 @@ type MarketData = {
   rows: MarketDay[];
   rebuild: {model: string; dataVersion: string; stocks: number; modeledStocks: number; stockDays: number;
     modeledStockDays: number; firstDate: string; lastDate: string; dailyRows: number};
+  daily?: {through: string; appended: number; referenceThrough: string};
   material: {seedDate: string; rows: StockDay[]};
   stockAudit: {checks: number; stocks: number; maePp: number; maxPp: number};
   split: {date: string; publishedPct: number; candidatePct: number; adjustedPct: number};
@@ -110,6 +111,7 @@ export default function MarketMaintenance() {
     <p className="mt-7 text-xs font-semibold tracking-widest text-teal-300">TAIWAN MARGIN MONITOR</p>
     <h1 className="mt-2 text-3xl font-semibold text-white">上市大盤融資維持率</h1>
     <p className="mt-2 text-sm leading-6 text-slate-400">排除 ETF · 資料庫逐股成本遞推與玩股網原始值</p>
+    {data?.daily && <p className="mt-2 text-xs leading-5 text-teal-200">交易日自動更新 · 重算至 {data.daily.through} · 玩股網對照至 {data.daily.referenceThrough}</p>}
     {error && <p role="alert" className="mt-5 text-rose-300">{error}</p>}
     {!data && !error && <p role="status" className="mt-5 text-slate-400">載入大盤重算資料…</p>}
     {data && latest && <>
