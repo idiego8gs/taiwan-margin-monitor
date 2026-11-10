@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import site_update
+from app.benchmark import FIELDS
 from app.main import app
 from app.site_snapshot import estimate_history, render
 
@@ -88,6 +89,31 @@ def test_exchange_report_scope_and_dividend_columns():
     report["tables"][0]["totalCount"] = 2
     with pytest.raises(ValueError, match="truncated"):
         site_update.action_rows(json.dumps(report), "TPEx", day, day, *fields[:2])
+
+
+def test_taiex_snapshot_backfill_and_revision_exclude_future_dates(tmp_path, monkeypatch):
+    a, b, future = "2026-11-02", "2026-11-03", "2026-11-04"
+    monkeypatch.setattr(site_update, "START", date.fromisoformat(a))
+    seed = {"universe_date": a, "official_through": b, "official_dates": {"TWSE": b},
+            "calendar": {}, "stocks": []}
+
+    class OfficialIndex:
+        close = "25001"
+
+        def get(self, url, market):
+            assert market == "TWSE" and "date=20261101" in url
+            return json.dumps({"stat": "OK", "fields": FIELDS,
+                               "data": [["115/11/02", "25000", "25000", "25000", "25000"],
+                                        ["115/11/03", "25001", "25002", "25001", self.close],
+                                        ["115/11/04", "25003", "25003", "25003", "25003"]]})
+
+    client = OfficialIndex()
+    site_update.refresh_taiex(seed, client)
+    assert render(seed, tmp_path)["taiex_close"] == {a: "25000", b: "25001"}
+    client.close = "25002"
+    site_update.refresh_taiex(seed, client)
+    assert render(seed, tmp_path)["taiex_close"] == {a: "25000", b: "25002"}
+    assert future not in seed["taiex_close"]
 
 
 def test_pending_market_does_not_apply_half_day_and_retry_can_resume(monkeypatch):

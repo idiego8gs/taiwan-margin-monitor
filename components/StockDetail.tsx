@@ -5,11 +5,14 @@ import {CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, 
 import {base, csvDownload, fmt, labels, loadHistory, loadIndex, type Day, type Manifest, type Stock} from './siteData';
 
 const ranges = {'1M': 1, '3M': 3, '6M': 6, '1Y': 12, '3Y': 36, 'ALL': 0} as const;
+const taiexColor = '#c4a5ff';
 const dayLabel = (time: Time) => typeof time === 'string' ? time :
   typeof time === 'number' ? new Date(time * 1000).toISOString().slice(0, 10) :
   `${time.year}-${String(time.month).padStart(2, '0')}-${String(time.day).padStart(2, '0')}`;
 
-function Charts({rows, onDay, bridges}: {rows: Day[]; onDay: (row: Day | null) => void; bridges: boolean}) {
+function Charts({rows, onDay, bridges, taiex}: {
+  rows: Day[]; onDay: (row: Day | null) => void; bridges: boolean; taiex?: Record<string, string>;
+}) {
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!container.current || !rows.length) return;
@@ -23,6 +26,14 @@ function Charts({rows, onDay, bridges}: {rows: Day[]; onDay: (row: Day | null) =
     candles.setData(rows.map(row => row.open != null && row.high != null && row.low != null && row.close != null
       ? {time: row.date, open: Number(row.open), high: Number(row.high), low: Number(row.low), close: Number(row.close)}
       : {time: row.date}));
+    if (taiex && rows.some(row => taiex[row.date] != null)) {
+      const index = chart.addSeries(LineSeries, {
+        title: '台股加權指數', color: taiexColor, lineWidth: 2, priceScaleId: 'left',
+        priceLineVisible: false, priceFormat: {type: 'custom', formatter: (value: number) => fmt(value, 0)},
+      });
+      index.priceScale().applyOptions({visible: true});
+      index.setData(rows.map(({date}) => taiex[date] == null ? {time: date} : {time: date, value: Number(taiex[date])}));
+    }
     const reference = chart.addSeries(LineSeries, {
       title: '130% 參考線', color: '#f4bf62', lineStyle: LineStyle.Dashed, lineWidth: 1,
       crosshairMarkerVisible: false, priceLineVisible: false,
@@ -78,8 +89,9 @@ function Charts({rows, onDay, bridges}: {rows: Day[]; onDay: (row: Day | null) =
     chart.subscribeClick(event => selectDay(event.time));
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [rows, onDay, bridges]);
-  return <div ref={container} aria-label="股價、維持率、融資餘額及成交量圖表"/>;
+  }, [rows, onDay, bridges, taiex]);
+  return <div ref={container} aria-label={taiex ? '股價、台股加權指數、維持率、融資餘額及成交量圖表' :
+    '股價、維持率、融資餘額及成交量圖表'}/>;
 }
 
 export default function StockDetail({id}: {id: string}) {
@@ -89,6 +101,7 @@ export default function StockDetail({id}: {id: string}) {
   const [point, setPoint] = useState<Day | null>(null);
   const [page, setPage] = useState(1);
   const [bridges, setBridges] = useState(true);
+  const [showTaiex, setShowTaiex] = useState(true);
   const [onlyIssues, setOnlyIssues] = useState(false);
   useEffect(() => {
     let active = true;
@@ -122,6 +135,9 @@ export default function StockDetail({id}: {id: string}) {
   [rows]);
   const reversed = useMemo(() => [...(onlyIssues ? issues : rows)].reverse(), [rows, issues, onlyIssues]);
   const selected = point && rows.includes(point) ? point : rows.at(-1);
+  const taiex = data?.manifest.taiex_close;
+  const selectedTaiex = selected && taiex?.[selected.date];
+  const hasTaiex = useMemo(() => Boolean(taiex && rows.some(row => taiex[row.date] != null)), [taiex, rows]);
   const quality = (row?: Day) => row ? labels[row.quality] || row.quality : '無可用資料';
   const selectRow = (row: Day) => {
     setPoint(row);
@@ -168,6 +184,10 @@ export default function StockDetail({id}: {id: string}) {
             <input type="checkbox" checked={bridges} onChange={event => setBridges(event.target.checked)}/>
             以虛線連接相鄰成本段
           </label>
+          {hasTaiex && <label className="flex items-center gap-2" style={{color: taiexColor}}>
+            <input type="checkbox" checked={showTaiex} onChange={event => setShowTaiex(event.target.checked)}/>
+            台股加權指數（左軸・點）
+          </label>}
         </div>
         <p className="mt-3 text-xs leading-5 text-slate-400">虛線僅連接相鄰日期的兩個獨立估計值，並非補回缺失資料；有缺值的日期仍保留空白。移動游標或點選圖表可查看當日資料。</p>
         <p className="my-4 text-sm text-slate-300" aria-live="off">
@@ -175,8 +195,11 @@ export default function StockDetail({id}: {id: string}) {
           成本 {fmt(selected?.cost)} · 維持率 {selected?.maintenance == null ? '—' : fmt(selected.maintenance) + '%'} ·
           130% 參考價 {fmt(selected?.reference_130)} · 餘額 {fmt(selected?.balance)} · 成交量 {fmt(selected?.volume)} · {quality(selected)}
           {selected?.action && ` · ${selected.action.reason || (selected.action.cash ? '每股現金 ' + selected.action.cash : selected.action.kind)}`}
+          {showTaiex && hasTaiex && <span className="ml-2 whitespace-nowrap" style={{color: taiexColor}}>
+            加權指數 {selectedTaiex == null ? '—' : fmt(selectedTaiex) + ' 點'}
+          </span>}
         </p>
-        {rows.length ? <Charts rows={rows} onDay={setPoint} bridges={bridges}/> : <p className="text-amber-200">此期間缺少可用歷史資料。</p>}
+        {rows.length ? <Charts rows={rows} onDay={setPoint} bridges={bridges} taiex={showTaiex && hasTaiex ? taiex : undefined}/> : <p className="text-amber-200">此期間缺少可用歷史資料。</p>}
       </div>
       <section className="panel mb-5 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">

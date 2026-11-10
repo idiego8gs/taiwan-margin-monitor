@@ -41,6 +41,7 @@ export type Manifest = {
   official_dates: Record<string, string | null>;
   workflow_run: string | null;
   review_count: number;
+  taiex_close?: Record<string, string>;
   stocks: Stock[];
 };
 

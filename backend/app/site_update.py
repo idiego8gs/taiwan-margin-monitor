@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 from .benchmark import TPEX_URL, URL, parse_report, parse_tpex_report
 from .finmind import BASE_URL
 from .official_repair import NotPublished, number, parse_margin, parse_prices, urls
-from .site_snapshot import MARKETS, json_bytes, read_seed, render, write_seed
+from .site_snapshot import MARKETS, START, json_bytes, read_seed, render, write_seed
 
 TWSE = "https://www.twse.com.tw/rwd/zh/"
 TPEX = "https://www.tpex.org.tw/www/zh-tw/bulletin/"
@@ -137,16 +137,34 @@ def fetch_actions(client, market, first, last):
     return result, evidence
 
 
-def trading_days(client, market, first, last):
+def index_reports(client, market, first, last):
     month = first.replace(day=1)
-    days = set()
     while month <= last:
         endpoint, parser, token = (URL, parse_report, month.strftime("%Y%m%d")) if market == "TWSE" else (
             TPEX_URL, parse_tpex_report, f"{month.year - 1911:03d}/{month.month:02d}")
         raw = client.get(endpoint + "?" + urlencode({"date": token, "response": "json"}), market)
-        days.update(day for day in parser(raw, month.year, month.month) if str(first) <= day <= str(last))
+        yield {day: values for day, values in parser(raw, month.year, month.month).items()
+               if str(first) <= day <= str(last)}
         month = (month + timedelta(days=32)).replace(day=1)
-    return days
+
+
+def trading_days(client, market, first, last):
+    return {day for report in index_reports(client, market, first, last) for day in report}
+
+
+def refresh_taiex(seed, client):
+    through = seed["official_through"]
+    if not through:
+        return
+    previous = seed.get("taiex_close", {})
+    recent = sorted(day for day in previous if day <= through)[-5:]
+    first = date.fromisoformat(recent[0]) if recent else START
+    updated = {day: close for day, close in previous.items() if day < str(first)}
+    for report in index_reports(client, "TWSE", first, date.fromisoformat(through)):
+        updated.update({day: values["close"] for day, values in report.items()})
+    if through not in updated:
+        raise NotPublished("official TAIEX close missing for the snapshot date")
+    seed["taiex_close"] = updated
 
 
 def daily_reports(client, market, day):
@@ -254,7 +272,9 @@ def main():
         parser.error("cannot fetch a future trading date")
     seed = read_seed(args.seed)
     before = sha256(json_bytes(seed)).hexdigest()
-    result = refresh(seed, through, SourceClient())
+    client = SourceClient()
+    result = refresh(seed, through, client)
+    refresh_taiex(seed, client)
     # Keep the existing publication if neither inputs nor available dates changed.
     if sha256(json_bytes(seed)).hexdigest() != before and seed["official_through"]:
         seed["workflow_run"] = os.getenv("SITE_WORKFLOW_RUN")

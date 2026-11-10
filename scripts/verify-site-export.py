@@ -30,7 +30,7 @@ STOCK_FIELDS = {
 EVENT_FIELDS = {"kind", "source", "reason", "multiplier", "cash"}
 SEED_FIELDS = {
     "format", "universe_date", "universe_id", "calendar", "stocks", "official_through",
-    "official_dates", "action_evidence", "workflow_run",
+    "official_dates", "action_evidence", "workflow_run", "taiex_close",
 }
 MARKETS = {"TWSE", "TPEx"}
 HASH = re.compile(r"[a-f0-9]{64}\Z")
@@ -69,6 +69,11 @@ def check_seed(path, key):
         fields(stock, STOCK_FIELDS)
         dated_records(stock["rows"], ROW_FIELDS)
         dated_records(stock["events"], EVENT_FIELDS)
+    for day, close in seed.get("taiex_close", {}).items():
+        if (not DATE.fullmatch(day) or day > seed["official_through"] or
+                not isinstance(close, str) or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", close) or
+                float(close) <= 0):
+            raise ValueError("Invalid TAIEX closing observation")
     for market, sources in seed.get("action_evidence", {}).items():
         if market not in MARKETS or any(
             not url.startswith(("https://www.twse.com.tw/", "https://www.tpex.org.tw/"))

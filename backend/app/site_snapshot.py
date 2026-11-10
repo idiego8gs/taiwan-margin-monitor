@@ -225,6 +225,8 @@ def render(seed, root):
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "official_through": seed["official_through"], "official_dates": seed["official_dates"],
                     "workflow_run": seed.get("workflow_run"), "stocks": []}
+        if "taiex_close" in seed:
+            manifest["taiex_close"] = seed["taiex_close"]
         for stock in seed["stocks"]:
             meta = {field: stock[field] for field in ("security_id", "code", "name", "market", "rank")}
             rows = estimate_history(stock, seed["calendar"].get(stock["market"], []))
