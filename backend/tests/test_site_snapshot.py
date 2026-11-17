@@ -54,6 +54,18 @@ def test_missing_date_breaks_cost_and_restarts_with_warmup():
     assert days[2]["warmup"]
 
 
+def test_small_balance_revision_keeps_cost_segment():
+    days = ["2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05"]
+    rows = {days[0]: row("100", 0, 1000, 0, 0, 1000),
+            days[1]: row("100", 999, 0, 0, 0, 999),     # exchange revised yesterday's 1000 down to 999
+            days[2]: row("100", 1004, 5, 0, 0, 1009),   # +5 lots revision, within 10 lots
+            days[3]: row("100", 1500, 0, 0, 0, 1500)}   # +49% revision is a real discontinuity
+    items = estimate_history({**stock(rows), "action_through": days[-1]}, days)
+    assert [x["segment"] for x in items[:3]] == [items[0]["segment"]] * 3
+    assert items[1]["cost"] == items[2]["cost"] == D(100)
+    assert items[3]["segment"] != items[0]["segment"]
+
+
 def test_snapshot_immutable_history_api_matches_static(tmp_path, monkeypatch):
     a, b = "2026-11-02", "2026-11-03"
     seed = {"universe_date": a, "official_through": b, "official_dates": {"TWSE": b, "TPEx": b},
@@ -105,7 +117,7 @@ def test_prior_maintenance_ignores_other_cost_segments(tmp_path):
     days = [f"2026-11-0{n}" for n in range(2, 9)]
     rows = {day: row("100", 20, 0, 0, 0, 20) for day in days}
     rows[days[0]] = row("100", 0, 20, 0, 0, 20)
-    rows[days[-1]] = row("100", 30, 0, 0, 0, 30)  # balance break restarts the cost segment
+    rows[days[-1]] = row("100", 60, 0, 0, 0, 60)  # balance break (beyond the revision tolerance) restarts the segment
     seed = {"universe_date": days[0], "official_through": days[-1],
             "official_dates": {"TWSE": days[-1], "TPEx": days[-1]},
             "calendar": {"TWSE": days, "TPEx": []}, "stocks": [{**stock(rows), "action_through": days[-1]}]}

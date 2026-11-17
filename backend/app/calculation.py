@@ -126,7 +126,8 @@ def load_calendar(db, start, end):
 
 
 def build_series(rows, *, events=None, calendar=None, finance_ratio=D('0.6'),
-                 reconcile_decreases=False, warmup_assumed=False, buy_price_method='vwap'):
+                 reconcile_decreases=False, warmup_assumed=False, buy_price_method='vwap',
+                 revision_tolerance=None):
     """Return daily estimates through the first unresolvable error, never inventing trades.
 
     For an explicit research scenario only, a downward opening-balance revision keeps
@@ -169,11 +170,18 @@ def build_series(rows, *, events=None, calendar=None, finance_ratio=D('0.6'),
                 detail={'date':day,'kind':'previous_balance_conflict','previous_date':previous_day,
                         'previous_day_balance':previous_balance,'expected_after_action':expected,
                         'reported_previous_balance':row.previous_balance}
+                small=(revision_tolerance is not None and
+                       abs(D(row.previous_balance)-expected)<=max(D(revision_tolerance[0]),expected*D(revision_tolerance[1])))
+                if small:
+                    # Exchange revisions of a few lots: carry the prior average cost (as the Wantgoo rebuild does).
+                    detail['assumption']='小幅餘額修訂，沿用前期平均成本；非已確認交易'
+                    issues.append(detail);reconciled=True
                 # Never assign a cost to unexplained newly added positions.
-                if not reconcile_decreases or D(row.previous_balance)>expected:
+                elif not reconcile_decreases or D(row.previous_balance)>expected:
                     blocked=detail;break
-                detail['assumption']='按比例減少舊部位，平均成本不變；非已確認交易'
-                issues.append(detail);reconciled=True
+                else:
+                    detail['assumption']='按比例減少舊部位，平均成本不變；非已確認交易'
+                    issues.append(detail);reconciled=True
         # Once all prior lots are gone, inherited warm-up and revision uncertainty reset.
         if old==0:
             warmup=False; reconciled=False

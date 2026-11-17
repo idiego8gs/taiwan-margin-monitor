@@ -20,7 +20,9 @@ from .db import ProviderResponse, engine
 from .engine import Action, DataQualityError
 from .factor_data import segmented_series
 
-MODEL = "site-close-principal-0.6-v1"
+MODEL = "site-close-principal-0.6-v2"
+# Reported previous-day balances that differ by at most max(10 lots, 1%) keep the cost segment (v2).
+REVISION_TOLERANCE = (10, "0.01")
 START = date(2021, 10, 1)
 MARKETS = ("TWSE", "TPEx")
 ACTION_DATASETS = (DIVIDEND, DIVIDEND_RESULT, SPLIT, REDUCTION)
@@ -186,7 +188,8 @@ def estimate_history(stock, market_days):
             if key not in stock.get("checked_action_days", ()):
                 events[day] = Event(day, None, "corporate_action_coverage_gap", "site",
                                     "公司行動尚未核驗")
-    calculated, breaks = segmented_series(rows, events, calendar, keep_cash_out_of_principal=True)
+    calculated, breaks = segmented_series(rows, events, calendar, keep_cash_out_of_principal=True,
+                                          revision_tolerance=REVISION_TOLERANCE)
     values = {str(item["date"]): item for item in calculated}
     reasons = {str(item["date"]): item["kind"] for item in breaks}
     result = []
