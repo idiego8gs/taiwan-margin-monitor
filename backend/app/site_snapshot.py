@@ -212,14 +212,24 @@ def estimate_history(stock, market_days):
     return result
 
 
+def prior_maintenance(rows, back):
+    """Ratio `back` trading days earlier, only when it shares the latest row's cost segment."""
+    if len(rows) <= back:
+        return None
+    latest, prior = rows[-1], rows[-1 - back]
+    if latest["segment"] is None or prior["segment"] != latest["segment"]:
+        return None
+    return prior["maintenance"]
+
+
 def render(seed, root):
     source_hash = sha256(json_bytes(seed)).hexdigest()
     version = sha256(json_bytes([MODEL, source_hash])).hexdigest()
     directory = root / "snapshots" / version
     manifest_path = directory / "index.json"
-    if manifest_path.exists():
-        manifest = json.loads(manifest_path.read_bytes())
-    else:
+    manifest = json.loads(manifest_path.read_bytes()) if manifest_path.exists() else None
+    # Snapshots rendered before the watch-list fields existed are rebuilt rather than reused.
+    if not manifest or not all("maintenance_1d_ago" in stock for stock in manifest["stocks"]):
         manifest = {"snapshot_id": version, "model": MODEL, "source_hash": source_hash,
                     "universe_date": seed["universe_date"], "finance_ratio": "0.6",
                     "created_at": datetime.now(timezone.utc).isoformat(),
@@ -235,7 +245,10 @@ def render(seed, root):
             latest = rows[-1] if rows else None
             meta.update(latest_quote_date=quote["date"] if quote else None,
                         latest_estimate_date=estimate["date"] if estimate else None,
-                        latest=latest)
+                        latest=latest,
+                        # Prior trading-day values let the home page flag sharp drops without loading histories.
+                        maintenance_1d_ago=prior_maintenance(rows, 1),
+                        maintenance_5d_ago=prior_maintenance(rows, 5))
             payload = json_bytes({"snapshot_id": version, "model": MODEL, "stock": meta, "items": rows})
             atomic_write(directory / "stocks" / f"{stock['security_id']}.json", payload)
             manifest["stocks"].append({**meta, "history_sha256": sha256(payload).hexdigest()})

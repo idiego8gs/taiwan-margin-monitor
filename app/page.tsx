@@ -1,7 +1,9 @@
 "use client";
 
 import {useEffect, useState} from 'react';
+import MarketCard from '../components/MarketCard';
 import {base, csvDownload, fmt, isPages, labels, loadIndex, stockLink, type Manifest} from '../components/siteData';
+import WatchList from '../components/WatchList';
 
 const pageSize = 50;
 
@@ -44,6 +46,8 @@ export default function Home() {
     {error && <p role="alert" className="mb-4 text-rose-300">{error}</p>}
     {!data && !error && <p role="status" className="text-slate-400">載入資料快照…</p>}
     {data && <>
+      <MarketCard/>
+      <WatchList data={data}/>
       <div className="panel mb-5 grid gap-4 p-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div><b className="block text-white">股票池</b>{data.stocks.length} 檔 · {data.universe_date}</div>
         <div><b className="block text-white">各市場資料日期</b>上市 {data.official_dates.TWSE || '待核對'}<br/>上櫃 {data.official_dates.TPEx || '待核對'}</div>
