@@ -41,9 +41,6 @@ class SourceClient:
     def get(self, url, market):
         interval = 15 if market == "FinMind" else 3
         headers = {"User-Agent": "TaiwanMarginMonitor/1.0 research"}
-        if market == 'Wantgoo':
-            headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json", "X-Requested-With": "XMLHttpRequest",
-                       "Referer": "https://www.wantgoo.com/stock/margin-trading/exclude-etf/taiex"}
         for attempt in range(3):
             time.sleep(max(0, interval - (time.monotonic() - self.last.get(market, 0))))
             self.last[market] = time.monotonic()
@@ -294,7 +291,6 @@ def main():
     client = SourceClient()
     result = refresh(seed, through, client, market_history=market_history)
     refresh_taiex(seed, client)
-    wantgoo_daily.refresh_reference(seed, client)
     if 'wantgoo_daily' in seed:
         result['market_through'] = seed['wantgoo_daily']['through']
     # Keep the existing publication if neither inputs nor available dates changed.

@@ -1,10 +1,10 @@
 from copy import deepcopy
-from datetime import datetime, timezone
 import json
 
 import pytest
 
-from app.wantgoo_daily import START, advance, refresh_reference, step
+from app.site_snapshot import write_seed
+from app.wantgoo_daily import START, advance, export, step
 
 
 def observed(balance=100):
@@ -33,15 +33,23 @@ def test_daily_aggregate_is_idempotent_and_reference_does_not_set_cost():
     advance(seed, day, quotes, margins)
     assert prior == seed
 
-    class Source:
-        def get(self, url, market):
-            assert market == 'Wantgoo'
-            stamp = int(datetime(2026, 11, 9, 16, tzinfo=timezone.utc).timestamp() * 1000)
-            return json.dumps([{'date': stamp, 'marginRatio': 1.42}])
 
-    refresh_reference(seed, Source())
-    assert state['references'] == {day: 142.}
-    assert state['positions'] == prior['wantgoo_daily']['positions']
+def test_export_appends_daily_rows_without_wantgoo_reference(tmp_path):
+    base_version = 'a' * 64
+    row = [START, 140., 139.4, 1, 1, 1., .9, .0, 0, 100, 71]
+    history = {'version': 2, 'rebuild': {'dataVersion': base_version, 'lastDate': START, 'dailyRows': 1}, 'rows': [row]}
+    daily = ['2026-11-10', 146.5, None, 1, 1, 1., .9, .01, 0, 105, 72]
+    # A legacy checkpoint still carrying a reference map must not leak it into the export.
+    state = {'format': 1, 'baseVersion': base_version, 'through': '2026-11-10', 'positions': {},
+             'rows': [daily], 'references': {'2026-11-10': 145.3}}
+    seed_path, historical, output = tmp_path / 'seed.json.gz', tmp_path / 'market.json', tmp_path / 'out.json'
+    write_seed(seed_path, {'format': 1, 'stocks': [{}] * 500, 'wantgoo_daily': state})
+    historical.write_text(json.dumps(history))
+    export(seed_path, historical, output)
+    payload = json.loads(output.read_text())
+    assert payload['rows'] == [row, daily]
+    assert payload['daily'] == {'through': '2026-11-10', 'appended': 1}
+    assert payload['rebuild']['dailyRows'] == 2
 
 
 def test_incomplete_inputs_do_not_mutate_cursor_or_cost_state():

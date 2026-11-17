@@ -59,6 +59,7 @@ def dated_records(records, allowed):
 
 def validate_market_state(seed):
     state = seed['wantgoo_daily']
+    # 'references' only appears in checkpoints written before the Wantgoo comparison was removed.
     fields(state, {'format', 'baseVersion', 'through', 'positions', 'rows', 'references'})
     if state['format'] != 1 or not HASH.fullmatch(state['baseVersion']):
         raise ValueError('Invalid market cost state version')
@@ -88,7 +89,7 @@ def validate_market_state(seed):
         last = day
     if last != state['through'] or (last != start and last > (seed['official_dates']['TWSE'] or '')):
         raise ValueError('Market cursor exceeds verified dates')
-    if any(day not in dates or not finite(ratio) or not 0 < ratio < 1000 for day, ratio in state['references'].items()):
+    if any(day not in dates or not finite(ratio) or not 0 < ratio < 1000 for day, ratio in state.get('references', {}).items()):
         raise ValueError('Invalid market reference dates')
 
 
