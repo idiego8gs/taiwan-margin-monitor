@@ -1,7 +1,7 @@
 import type {Manifest, Stock} from './siteData';
 
 // Home-page attention rules, in percentage points of the per-stock model ratio.
-export const WATCH = {low: 140, drop1: 8, drop5: 15} as const;
+export const WATCH = {low: 120, drop1: 15, drop5: 15} as const;
 
 export type WatchReason = 'low' | 'drop1' | 'drop5';
 
