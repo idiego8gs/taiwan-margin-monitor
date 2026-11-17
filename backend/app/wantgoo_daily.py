@@ -1,8 +1,6 @@
 """Continue the validated listed-stock cost vintage inside the Pages checkpoint."""
 import argparse
-from datetime import datetime, timedelta, timezone
 import json
-from math import isfinite
 from pathlib import Path
 import re
 
@@ -10,7 +8,6 @@ from .site_snapshot import atomic_write, json_bytes, read_seed
 from .wantgoo_rebuild import COST_SPLITS, FRACTION, daily_cost
 
 START = '2026-11-09'
-REFERENCE = 'https://www.wantgoo.com/stock/-ETFA/margin-trading/historical-lending-balance'
 STOCK = re.compile(r'[1-9][0-9]{3}\Z')
 SPLITS = {(code, str(day)): factor for (code, day), factor in COST_SPLITS.items()}
 
@@ -68,7 +65,7 @@ def initialize(seed, market):
         raise ValueError(f'Cloud cost replay differs from the base curve by {difference:.3f} pp')
     print(f'Cloud cost replay {START}: {included} positions, {ratio:.6f}%, difference {difference:+.6f} pp', flush=True)
     seed['wantgoo_daily'] = {'format': 1, 'baseVersion': market['rebuild']['dataVersion'], 'through': START,
-                             'positions': positions, 'rows': [], 'references': {}}
+                             'positions': positions, 'rows': []}
 
 
 def step(previous, row, split_factor=1.):
@@ -138,29 +135,6 @@ def advance(seed, day, quotes, margins):
     state['positions'], state['through'] = positions, day
 
 
-def refresh_reference(seed, client):
-    state = seed.get('wantgoo_daily')
-    if state is None or state['through'] == START or state['through'] in state['references']:
-        return
-    try:
-        response = json.loads(client.get(REFERENCE, 'Wantgoo'))
-        if not isinstance(response, list) or not 1 <= len(response) <= 600:
-            raise ValueError('unexpected reference shape')
-        days = {row[0] for row in state['rows']}
-        observations = {}
-        for item in response:
-            day = (datetime.fromtimestamp(item['date'] / 1000, timezone.utc) + timedelta(hours=8)).date().isoformat()
-            ratio = float(item['marginRatio']) * 100
-            if day in days:
-                if not isfinite(ratio) or not 0 < ratio < 1000 or day in observations:
-                    raise ValueError('invalid reference observation')
-                observations[day] = round(ratio, 6)
-        state['references'].update(observations)
-    except (OSError, KeyError, TypeError, ValueError, OverflowError) as exc:
-        # The independent calculation can publish while its comparison is pending.
-        print(f'Wantgoo comparison unavailable ({type(exc).__name__}); retained prior observations.', flush=True)
-
-
 def export(seed_path, historical_path, output):
     seed = read_seed(seed_path)
     payload = json.loads(historical_path.read_bytes())
@@ -168,11 +142,12 @@ def export(seed_path, historical_path, output):
     if state is not None:
         if payload['version'] != 2 or payload['rebuild']['dataVersion'] != state['baseVersion'] or payload['rows'][-1][0] != START:
             raise ValueError('Daily cost checkpoint does not match base curve')
-        tail = [[row[0], row[1], state['references'].get(row[0]), *row[3:]] for row in state['rows']]
+        # Daily rows carry no Wantgoo comparison; only the historical base keeps archived reference values.
+        # Older checkpoints may still hold a 'references' map, which is ignored.
+        tail = [[row[0], row[1], None, *row[3:]] for row in state['rows']]
         payload['rows'].extend(tail)
         payload['rebuild']['dailyRows'] += len(tail)
-        payload['daily'] = {'through': state['through'], 'appended': len(tail),
-                            'referenceThrough': max(state['references'], default=START)}
+        payload['daily'] = {'through': state['through'], 'appended': len(tail)}
     atomic_write(output, json_bytes(payload) + b'\n')
 
 
