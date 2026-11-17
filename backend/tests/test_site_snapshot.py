@@ -78,6 +78,61 @@ def test_snapshot_immutable_history_api_matches_static(tmp_path, monkeypatch):
     assert client.get("/api/v2/stocks?snapshot_id=invalid").status_code == 422
 
 
+def test_index_carries_prior_maintenance(tmp_path):
+    days = [f"2026-11-0{n}" for n in range(2, 9)]
+    rows = {day: row(str(100 - 3 * i), 20, 0, 0, 0, 20) for i, day in enumerate(days)}
+    rows[days[0]] = row("100", 0, 20, 0, 0, 20)
+    seed = {"universe_date": days[0], "official_through": days[-1],
+            "official_dates": {"TWSE": days[-1], "TPEx": days[-1]},
+            "calendar": {"TWSE": days, "TPEx": []}, "stocks": [{**stock(rows), "action_through": days[-1]}]}
+    manifest = render(seed, tmp_path)
+    item = manifest["stocks"][0]
+    history = json.loads((tmp_path / "snapshots" / manifest["snapshot_id"] / "stocks" / "12.json").read_bytes())["items"]
+    assert len(history) == 7 and history[-2]["maintenance"] is not None
+    assert item["maintenance_1d_ago"] == history[-2]["maintenance"]
+    assert item["maintenance_5d_ago"] == history[-6]["maintenance"]
+
+    short = {**seed, "calendar": {"TWSE": days[:2], "TPEx": []},
+             "stocks": [stock({day: rows[day] for day in days[:2]})]}
+    manifest = render(short, tmp_path / "short")
+    item = manifest["stocks"][0]
+    history = json.loads((tmp_path / "short" / "snapshots" / manifest["snapshot_id"] / "stocks" / "12.json").read_bytes())["items"]
+    assert item["maintenance_1d_ago"] == history[0]["maintenance"]
+    assert item["maintenance_5d_ago"] is None
+
+
+def test_prior_maintenance_ignores_other_cost_segments(tmp_path):
+    days = [f"2026-11-0{n}" for n in range(2, 9)]
+    rows = {day: row("100", 20, 0, 0, 0, 20) for day in days}
+    rows[days[0]] = row("100", 0, 20, 0, 0, 20)
+    rows[days[-1]] = row("100", 30, 0, 0, 0, 30)  # balance break restarts the cost segment
+    seed = {"universe_date": days[0], "official_through": days[-1],
+            "official_dates": {"TWSE": days[-1], "TPEx": days[-1]},
+            "calendar": {"TWSE": days, "TPEx": []}, "stocks": [{**stock(rows), "action_through": days[-1]}]}
+    manifest = render(seed, tmp_path)
+    history = json.loads((tmp_path / "snapshots" / manifest["snapshot_id"] / "stocks" / "12.json").read_bytes())["items"]
+    assert history[-1]["maintenance"] is not None and history[-1]["segment"] != history[-2]["segment"]
+    assert history[-2]["maintenance"] is not None
+    assert manifest["stocks"][0]["maintenance_1d_ago"] is None
+    assert manifest["stocks"][0]["maintenance_5d_ago"] is None
+
+
+def test_cached_manifest_without_prior_fields_is_rebuilt(tmp_path):
+    days = [f"2026-11-0{n}" for n in range(2, 5)]
+    rows = {day: row("100", 20, 0, 0, 0, 20) for day in days}
+    rows[days[0]] = row("100", 0, 20, 0, 0, 20)
+    seed = {"universe_date": days[0], "official_through": days[-1],
+            "official_dates": {"TWSE": days[-1], "TPEx": days[-1]},
+            "calendar": {"TWSE": days, "TPEx": []}, "stocks": [{**stock(rows), "action_through": days[-1]}]}
+    manifest = render(seed, tmp_path)
+    path = tmp_path / "snapshots" / manifest["snapshot_id"] / "index.json"
+    stale = json.loads(path.read_bytes())
+    for item in stale["stocks"]:
+        del item["maintenance_1d_ago"], item["maintenance_5d_ago"]
+    path.write_text(json.dumps(stale))
+    assert "maintenance_1d_ago" in render(seed, tmp_path)["stocks"][0]
+
+
 def test_exchange_report_scope_and_dividend_columns():
     day = date(2026, 11, 6)
     fields = ["除權息日期", "代號", "權/息", "現金股利"]

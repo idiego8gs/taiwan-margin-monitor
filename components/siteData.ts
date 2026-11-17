@@ -30,6 +30,9 @@ export type Stock = {
   latest_quote_date: string | null;
   latest_estimate_date: string | null;
   latest: Day | null;
+  // Absent in snapshots made before the home-page watch list.
+  maintenance_1d_ago?: string | null;
+  maintenance_5d_ago?: string | null;
 };
 
 export type Manifest = {
