@@ -1,7 +1,8 @@
 "use client";
 
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {ColorType, createChart, LineSeries, type Time} from 'lightweight-charts';
+import {createChart, LineSeries, type Time} from 'lightweight-charts';
+import {chartOptions} from './chartTheme';
 import {base, csvDownload, fmt, getJSON} from './siteData';
 
 type MarketDay = [date: string, estimate: number | null, reference: number | null,
@@ -42,11 +43,9 @@ function ComparisonChart({rows, label, height, onDate}: {
   useEffect(() => {
     if (!container.current || !rows.length) return;
     const chart = createChart(container.current, {
-      autoSize: true, height,
-      layout: {background: {type: ColorType.Solid, color: '#101925'}, textColor: '#b5c6d8'},
-      grid: {vertLines: {color: '#1b2938'}, horzLines: {color: '#253244'}},
-      rightPriceScale: {minimumWidth: 64, borderColor: '#334155'},
-      timeScale: {borderColor: '#334155', minBarSpacing: .05},
+      ...chartOptions, autoSize: true, height,
+      rightPriceScale: {...chartOptions.rightPriceScale, minimumWidth: 64},
+      timeScale: {...chartOptions.timeScale, minBarSpacing: .05},
       localization: {priceFormatter: (price: number) => price.toFixed(1) + '%'},
     });
     for (const [key, color, width] of [['reference', referenceColor, 1], ['estimate', estimateColor, 2]] as const) {

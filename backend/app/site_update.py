@@ -17,7 +17,7 @@ from .benchmark import TPEX_URL, URL, parse_report, parse_tpex_report
 from .finmind import BASE_URL
 from .official_repair import NotPublished, number, parse_margin, parse_prices, urls
 from .site_snapshot import MARKETS, START, json_bytes, read_seed, render, write_seed
-from . import wantgoo_daily
+from . import stock_dividends, wantgoo_daily
 
 TWSE = "https://www.twse.com.tw/rwd/zh/"
 TPEX = "https://www.tpex.org.tw/www/zh-tw/bulletin/"
@@ -102,12 +102,18 @@ def action_rows(raw, market, first, last, date_column, code_column):
     return result
 
 
-def normalize_action(kind, record, source):
+def normalize_action(kind, record, source, detail_terms=None):
     if kind == "ex_right" and record.get("權/息") in ("息", "除息"):
         cash = number(record.get("現金股利", record.get("權值+息值")))
         if cash is not None and cash > 0:
             return {"kind": "cash_dividend", "cash": str(cash), "multiplier": "1",
                     "reason": None, "source": source}
+    if kind == "ex_right":
+        # Stock dividends and rights leave financed lots unchanged; accept only verified terms.
+        resolved = (stock_dividends.from_tpex(record, source) if "每仟股無償配股" in record
+                    else stock_dividends.from_twse(record, detail_terms, source))
+        if resolved:
+            return resolved
     # TPEx publishes exact ratios in the detail cell. Never infer one from prices.
     multiplier = None
     detail = record.get("詳細資料", "")
@@ -135,7 +141,17 @@ def fetch_actions(client, market, first, last):
         evidence[url] = sha256(raw.encode()).hexdigest()
         for day, code, row in action_rows(raw, market, first, last, date_column, code_column):
             key = (day, code)
-            event = normalize_action(kind, row, endpoint)
+            terms = None
+            if market == "TWSE" and kind == "ex_right" and row.get("權/息") not in ("息", "除息"):
+                detail_url = TWSE + "exRight/TWT49UDetail?" + urlencode(
+                    {"STK_NO": code, "T1": day.replace("-", ""), "response": "json"})
+                detail = client.get(detail_url, market)
+                evidence[detail_url] = sha256(detail.encode()).hexdigest()
+                try:
+                    terms = stock_dividends.twse_detail_terms(detail)
+                except (ValueError, KeyError, TypeError):
+                    terms = None
+            event = normalize_action(kind, row, endpoint, terms)
             if key in result and result[key] != event:
                 event.update(multiplier=None, cash=None, reason="同日公司行動條款需要合併核對")
                 event["kind"] = "multiple_actions"

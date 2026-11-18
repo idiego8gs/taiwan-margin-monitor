@@ -14,13 +14,16 @@ from uuid import uuid4
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from . import stock_dividends
 from . import warehouse_schema as tables
-from .calculation import DIVIDEND, DIVIDEND_RESULT, REDUCTION, SPLIT, Event, load_actions
+from .calculation import (DIVIDEND, DIVIDEND_RESULT, REDUCTION, SPLIT, Event, _archived_response, _data,
+                          load_actions)
 from .db import ProviderResponse, engine
 from .engine import Action, DataQualityError
 from .factor_data import segmented_series
 
-MODEL = "site-close-principal-0.6-v2"
+MODEL = "site-close-principal-0.6-v3"
+# v3: verified stock-dividend and rights ex-right days keep the cost segment (financed lots unchanged).
 # Reported previous-day balances that differ by at most max(10 lots, 1%) keep the cost segment (v2).
 REVISION_TOLERANCE = (10, "0.01")
 START = date(2021, 10, 1)
@@ -94,7 +97,8 @@ def historical_actions(connection, security_id, code, first, last):
         except DataQualityError:
             # A conflicting archive cannot establish that an event was absent.
             covered, events = None, {}
-    normalized = {str(day): action_record(event) for day, event in events.items()}
+        normalized = {str(day): action_record(event) for day, event in events.items()}
+        resolve_ex_rights(session, code, normalized)
     normalized_rows = connection.execute(select(tables.actions).where(
         tables.actions.c.security_id == security_id,
         tables.actions.c.effective_date.between(first, last)).order_by(tables.actions.c.id)).mappings()
@@ -112,6 +116,33 @@ def historical_actions(connection, security_id, code, first, last):
             record.update(multiplier=None, cash=None, reason="同日公司行動條款需要合併核對")
         normalized[day] = record
     return normalized, str(covered) if covered else None
+
+
+def resolve_ex_rights(session, code, events):
+    """Replace FinMind ex-right events whose terms reproduce the reference price."""
+    pending = sorted(day for day, event in events.items()
+                     if event["kind"] == "unhandled_ex_right" and event["source"] == "FinMind " + DIVIDEND_RESULT)
+    if not pending:
+        return 0
+    first, last = date.fromisoformat(pending[0]), date.fromisoformat(pending[-1])
+    responses = [_archived_response(session, dataset, code, first, last) for dataset in (DIVIDEND, DIVIDEND_RESULT)]
+    if not all(responses):
+        return 0
+    policy = _data(responses[0])
+    results = {row.get("date"): row for row in _data(responses[1]) if row.get("stock_id") == code}
+    count = 0
+    for day in pending:
+        resolved = stock_dividends.from_finmind(day, policy, results.get(day), "FinMind " + DIVIDEND_RESULT)
+        if resolved:
+            events[day] = resolved
+            count += 1
+    return count
+
+
+def resolve_seed_ex_rights(seed, target=engine):
+    """Upgrade an existing checkpoint's historical ex-right events from the local archive."""
+    with Session(target) as session:
+        return sum(resolve_ex_rights(session, stock["code"], stock["events"]) for stock in seed["stocks"])
 
 
 def warehouse_seed(target=engine):
@@ -277,9 +308,16 @@ def main():
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     parser.add_argument("--seed", type=Path, required=True)
     parser.add_argument("--from-warehouse", action="store_true")
+    parser.add_argument("--resolve-ex-rights", type=Path, metavar="OUTPUT",
+                        help="write a copy of --seed with verified historical ex-right events, then render it")
     args = parser.parse_args()
     if args.from_warehouse:
         write_seed(args.seed, warehouse_seed())
+    if args.resolve_ex_rights:
+        seed = read_seed(args.seed)
+        print(json_bytes({"resolved_ex_rights": resolve_seed_ex_rights(seed)}).decode())
+        write_seed(args.resolve_ex_rights, seed)
+        args.seed = args.resolve_ex_rights
     result = render(read_seed(args.seed), args.root)
     print(json_bytes({key: value for key, value in result.items() if key != "stocks"}).decode())
 

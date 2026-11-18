@@ -1,7 +1,8 @@
 "use client";
 
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, LineStyle, type Time} from 'lightweight-charts';
+import {CandlestickSeries, createChart, HistogramSeries, LineSeries, LineStyle, type Time} from 'lightweight-charts';
+import {chartOptions, tv} from './chartTheme';
 import {base, csvDownload, fmt, labels, loadHistory, loadIndex, type Day, type Manifest, type Stock} from './siteData';
 
 const ranges = {'1M': 1, '3M': 3, '6M': 6, '1Y': 12, '3Y': 36, 'ALL': 0} as const;
@@ -17,12 +18,13 @@ function Charts({rows, onDay, bridges, taiex}: {
   useEffect(() => {
     if (!container.current || !rows.length) return;
     const chart = createChart(container.current, {
-      autoSize: true, height: 700,
-      layout: {background: {type: ColorType.Solid, color: '#101a28'}, textColor: '#b5c6d8'},
-      grid: {vertLines: {color: '#253244'}, horzLines: {color: '#253244'}},
-      rightPriceScale: {minimumWidth: 76},
+      ...chartOptions, autoSize: true, height: 640,
+      rightPriceScale: {...chartOptions.rightPriceScale, minimumWidth: 76},
     });
-    const candles = chart.addSeries(CandlestickSeries, {title: '股價'});
+    const candles = chart.addSeries(CandlestickSeries, {
+      title: '股價', upColor: tv.up, downColor: tv.down, borderVisible: false,
+      wickUpColor: tv.up, wickDownColor: tv.down,
+    });
     candles.setData(rows.map(row => row.open != null && row.high != null && row.low != null && row.close != null
       ? {time: row.date, open: Number(row.open), high: Number(row.high), low: Number(row.low), close: Number(row.close)}
       : {time: row.date}));
@@ -78,9 +80,18 @@ function Charts({rows, onDay, bridges, taiex}: {
     }
     const balance = chart.addSeries(HistogramSeries, {title: '融資餘額', color: '#5da6d6'}, 2);
     balance.setData(rows.map(row => row.balance == null ? {time: row.date} : {time: row.date, value: row.balance}));
-    const volume = chart.addSeries(HistogramSeries, {title: '成交股數', color: '#6d8aa2'}, 3);
-    volume.setData(rows.map(row => row.volume == null ? {time: row.date} : {time: row.date, value: row.volume}));
-    chart.panes()[0].setStretchFactor(2);
+    // Volume sits at the foot of the price pane, as on TradingView.
+    const volume = chart.addSeries(HistogramSeries, {
+      title: '成交股數', priceScaleId: 'volume', priceFormat: {type: 'volume'}, lastValueVisible: false, priceLineVisible: false,
+    }, 0);
+    volume.priceScale().applyOptions({scaleMargins: {top: 0.8, bottom: 0}});
+    volume.setData(rows.map(row => row.volume == null ? {time: row.date} : {
+      time: row.date, value: row.volume,
+      color: row.close != null && row.open != null && Number(row.close) < Number(row.open) ? tv.downVolume : tv.upVolume,
+    }));
+    candles.priceScale().applyOptions({scaleMargins: {top: 0.12, bottom: 0.22}});
+    chart.panes()[0].setStretchFactor(3);
+    chart.panes()[1].setStretchFactor(1.4);
     const byDate = new Map(rows.map(row => [row.date, row]));
     function selectDay(time: Time | undefined) {
       if (time !== undefined) onDay(byDate.get(dayLabel(time)) || null);
@@ -92,6 +103,29 @@ function Charts({rows, onDay, bridges, taiex}: {
   }, [rows, onDay, bridges, taiex]);
   return <div ref={container} aria-label={taiex ? '股價、台股加權指數、維持率、融資餘額及成交量圖表' :
     '股價、維持率、融資餘額及成交量圖表'}/>;
+}
+
+const actionLabel = (action: NonNullable<Day['action']>) => action.kind === 'stock_dividend'
+  ? '除權（配股撥入投資人帳戶，融資股數與借款不變）'
+  : action.reason || (action.cash ? '每股現金 ' + action.cash : action.kind);
+
+// TradingView-style floating legend for the hovered (or latest) day.
+function Legend({code, name, row, previous}: {code: string; name: string; row?: Day; previous?: Day}) {
+  const close = row?.close == null ? null : Number(row.close);
+  const prior = previous?.close == null ? null : Number(previous.close);
+  const change = close != null && prior ? close - prior : null;
+  const color = change == null ? tv.text : change >= 0 ? tv.up : tv.down;
+  const item = (label: string, value: string) => <span className="whitespace-nowrap">
+    <span className="text-[#787b86]">{label}</span> <span style={{color}}>{value}</span>
+  </span>;
+  return <div className="pointer-events-none absolute left-3 top-2 z-10 flex max-w-[calc(100%-96px)] flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs" style={{color: tv.text}}>
+    <span className="text-sm font-semibold text-white">{code} {name}</span>
+    <span className="text-[#787b86]">1D · TWSE/TPEx</span>
+    {item('開', fmt(row?.open))}{item('高', fmt(row?.high))}{item('低', fmt(row?.low))}{item('收', fmt(row?.close))}
+    {change != null && prior ? <span style={{color}}>{change >= 0 ? '+' : ''}{fmt(change)} ({change >= 0 ? '+' : ''}{fmt(change / prior * 100)}%)</span> : null}
+    <span className="whitespace-nowrap"><span className="text-[#787b86]">維持率</span> <span className="text-[#55e1ca]">{row?.maintenance == null ? '—' : fmt(row.maintenance) + '%'}</span></span>
+    <span className="whitespace-nowrap"><span className="text-[#787b86]">成本</span> <span className="text-[#74c5ff]">{fmt(row?.cost)}</span></span>
+  </div>;
 }
 
 export default function StockDetail({id}: {id: string}) {
@@ -194,12 +228,15 @@ export default function StockDetail({id}: {id: string}) {
           {selected?.date || '—'} · 開 {fmt(selected?.open)} · 高 {fmt(selected?.high)} · 低 {fmt(selected?.low)} · 收 {fmt(selected?.close)} ·
           成本 {fmt(selected?.cost)} · 維持率 {selected?.maintenance == null ? '—' : fmt(selected.maintenance) + '%'} ·
           130% 參考價 {fmt(selected?.reference_130)} · 餘額 {fmt(selected?.balance)} · 成交量 {fmt(selected?.volume)} · {quality(selected)}
-          {selected?.action && ` · ${selected.action.reason || (selected.action.cash ? '每股現金 ' + selected.action.cash : selected.action.kind)}`}
+          {selected?.action && ` · ${actionLabel(selected.action)}`}
           {showTaiex && hasTaiex && <span className="ml-2 whitespace-nowrap" style={{color: taiexColor}}>
             加權指數 {selectedTaiex == null ? '—' : fmt(selectedTaiex) + ' 點'}
           </span>}
         </p>
-        {rows.length ? <Charts rows={rows} onDay={setPoint} bridges={bridges} taiex={showTaiex && hasTaiex ? taiex : undefined}/> : <p className="text-amber-200">此期間缺少可用歷史資料。</p>}
+        {rows.length ? <div className="relative overflow-hidden rounded border border-[#2a2e39]">
+          <Legend code={data.stock.code} name={data.stock.name} row={selected} previous={selected ? rows[rows.indexOf(selected) - 1] : undefined}/>
+          <Charts rows={rows} onDay={setPoint} bridges={bridges} taiex={showTaiex && hasTaiex ? taiex : undefined}/>
+        </div> : <p className="text-amber-200">此期間缺少可用歷史資料。</p>}
       </div>
       <section className="panel mb-5 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
