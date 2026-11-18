@@ -55,3 +55,23 @@ def test_verified_stock_dividend_keeps_cost_segment():
     assert items[3]["cost"] == items[2]["cost"]
     unresolved = {**event, "kind": "unhandled_ex_right", "multiplier": None, "cash": None}
     assert len({item["segment"] for item in estimate_history({**stock, "events": {days[3]: unresolved}}, days)} - {None}) == 2
+
+
+def test_official_share_action_terms():
+    # 大同 2025-06-23: 950 new shares per thousand and NT$0.5 refund per share.
+    detail = json.dumps({"stat": "OK", "fields": ["股票代號：", "每壹仟股換發新股票：", "每股退還股款：", "減資並(有償)現金增資："],
+                         "data": [["2371  ", "950.00000000 股", "0.500000 元/股", "0 股"]]})
+    terms = site_update.twse_reduction_terms(detail)
+    twse = {"停止買賣前收盤價格": "40.15", "恢復買賣參考價": "41.73", "減資原因": "退還股款"}
+    event = site_update.normalize_action("capital_reduction", twse, "TWSE", terms)
+    assert (event["multiplier"], event["cash"]) == ("0.95", "0.5")
+    assert site_update.normalize_action("capital_reduction", {**twse, "恢復買賣參考價": "44"}, "TWSE", terms)["multiplier"] is None
+    tpex = {"最後交易日之收盤價格": "284.00", "減資恢復買賣開始日參考價格": "301.49", "減資原因": "現金減資",
+            "詳細資料": "<tr><th>每壹仟股換發新股票:</th><td>940.00000000&nbsp股</td></tr><tr><th>每股退還股款:</th>"
+                     "<td>0.60000000&nbsp元/股</td></tr><tr><th>現金增資總股數:</th><td>NA</td></tr></table><table>"}
+    assert site_update.normalize_action("capital_reduction", tpex, "TPEx")["multiplier"] == "0.94"
+    # 國巨 2025-08-25: NT$10 to NT$2.5 par, four new shares per share.
+    assert site_update.normalize_action("par_value_change", {"停止買賣前收盤價格": "546.00", "恢復買賣參考價": "136.50"},
+                                        "TWSE")["multiplier"] == "4"
+    assert site_update.normalize_action("par_value_change", {"停止買賣前收盤價格": "546.00", "恢復買賣參考價": "150"},
+                                        "TWSE")["multiplier"] is None

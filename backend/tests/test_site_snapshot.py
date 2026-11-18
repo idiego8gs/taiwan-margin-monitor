@@ -66,6 +66,21 @@ def test_small_balance_revision_keeps_cost_segment():
     assert items[3]["segment"] != items[0]["segment"]
 
 
+def test_large_balance_revisions_v4():
+    days = [f"2026-11-{n:02d}" for n in range(2, 9)]
+    rows = {days[0]: row("100", 0, 1000, 0, 0, 1000),
+            days[1]: row("110", 600, 0, 0, 0, 600),     # 400 lots dropped from the report
+            days[2]: row("120", 1000, 0, 0, 0, 1000),   # ...and restored the next day
+            days[3]: row("90", 800, 0, 0, 0, 800),      # lasting decrease keeps the average cost
+            days[4]: row("90", 870, 0, 0, 0, 870),      # +8.75% revision within the 10% limit
+            days[5]: row("90", 870, 0, 0, 0, 870),
+            days[6]: row("90", 1500, 0, 0, 0, 1500)}    # +72% is still a discontinuity
+    items = estimate_history({**stock(rows), "action_through": days[-1]}, days)
+    assert [x["segment"] for x in items[:6]] == [items[0]["segment"]] * 6
+    assert {x["cost"] for x in items[:6]} == {D(100)}
+    assert items[6]["segment"] != items[0]["segment"]
+
+
 def test_snapshot_immutable_history_api_matches_static(tmp_path, monkeypatch):
     a, b = "2026-11-02", "2026-11-03"
     seed = {"universe_date": a, "official_through": b, "official_dates": {"TWSE": b, "TPEx": b},
