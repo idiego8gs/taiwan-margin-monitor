@@ -22,8 +22,11 @@ from .db import ProviderResponse, engine
 from .engine import Action, DataQualityError
 from .factor_data import segmented_series
 
-MODEL = "site-close-principal-0.6-v3"
+MODEL = "site-close-principal-0.6-v4"
 # v3: verified stock-dividend and rights ex-right days keep the cost segment (financed lots unchanged).
+# v4: reported balance decreases keep the average cost; lots dropped from one report and restored the next
+#     day, and increases up to INCREASE_LIMIT, carry the prior average cost (flagged as assumptions).
+INCREASE_LIMIT = "0.10"
 # Reported previous-day balances that differ by at most max(10 lots, 1%) keep the cost segment (v2).
 REVISION_TOLERANCE = (10, "0.01")
 START = date(2021, 10, 1)
@@ -220,7 +223,8 @@ def estimate_history(stock, market_days):
                 events[day] = Event(day, None, "corporate_action_coverage_gap", "site",
                                     "公司行動尚未核驗")
     calculated, breaks = segmented_series(rows, events, calendar, keep_cash_out_of_principal=True,
-                                          revision_tolerance=REVISION_TOLERANCE)
+                                          revision_tolerance=REVISION_TOLERANCE, reconcile_decreases=True,
+                                          increase_limit=INCREASE_LIMIT)
     values = {str(item["date"]): item for item in calculated}
     reasons = {str(item["date"]): item["kind"] for item in breaks}
     result = []

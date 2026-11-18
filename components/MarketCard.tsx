@@ -40,7 +40,7 @@ export default function MarketCard() {
     </div>
     <div className="flex min-w-[12rem] flex-1 flex-col items-end gap-1">
       <Spark points={summary.spark}/>
-      <span className="text-sm text-teal-300">查看大盤 →</span>
+      <span className="text-sm text-teal-300">查看大盤與跌破門檻回測 →</span>
     </div>
   </a>;
 }

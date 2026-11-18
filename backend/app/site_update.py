@@ -114,21 +114,67 @@ def normalize_action(kind, record, source, detail_terms=None):
                     else stock_dividends.from_twse(record, detail_terms, source))
         if resolved:
             return resolved
-    # TPEx publishes exact ratios in the detail cell. Never infer one from prices.
-    multiplier = None
-    detail = record.get("詳細資料", "")
+    multiplier, cash = None, Decimal(0)
     if kind == "par_value_change":
-        match = re.search(r"變更股票面額換股率[:：]</th><td>([0-9.]+)</td>", detail)
-        if match:
-            multiplier = number(match[1])
-    if kind == "capital_reduction" and record.get("減資原因") == "彌補虧損":
-        match = re.search(r"每壹仟股換發新股票[:：]</th><td>([0-9.]+)&nbsp股</td>", detail)
-        # Limit automatic conversion to a verified pure share reduction.
-        if match and "現金增資總股數:</th><td>NA</td>" in detail:
-            multiplier = number(match[1]) / Decimal(1000)
+        multiplier = par_value_multiplier(record)
+    if kind == "capital_reduction":
+        multiplier, cash = reduction_terms(record, detail_terms) or (None, None)
     return {"kind": "unhandled_ex_right" if kind == "ex_right" else kind,
-            "cash": "0" if multiplier else None, "multiplier": str(multiplier) if multiplier else None,
+            "cash": plain(cash) if multiplier else None, "multiplier": plain(multiplier) if multiplier else None,
             "source": source, "reason": None if multiplier else "公司行動換股條款待核對"}
+
+
+def plain(value):
+    return format(Decimal(value).normalize(), "f")
+
+
+# Par value changes are pure share splits; these are the ratios that NT$1-20 par values allow.
+PAR_RATIOS = tuple(Decimal(r) for r in ("2", "2.5", "4", "5", "10", "20", "0.5", "0.4", "0.25", "0.2", "0.1"))
+
+
+def par_value_multiplier(record):
+    """TPEx states the exchange ratio; TWSE only states prices, which must match a par ratio exactly."""
+    match = re.search(r"變更股票面額換股率[:：]</th><td>([0-9.]+)</td>", record.get("詳細資料", ""))
+    if match:
+        return number(match[1])
+    before, reference = number(record.get("停止買賣前收盤價格")), number(record.get("恢復買賣參考價"))
+    if not before or not reference:
+        return None
+    ratio = before / reference
+    return next((r for r in PAR_RATIOS if abs(ratio - r) <= r * Decimal("0.003")), None)
+
+
+def reduction_terms(record, detail_terms):
+    """Exact shares per thousand and refund per share, checked against the resumption reference price."""
+    detail = record.get("詳細資料", "")
+    if "<table>" in detail:  # TPEx
+        per = re.search(r"每壹仟股換發新股票[:：]</th><td>([0-9.]+)&nbsp股", detail)
+        refund = re.search(r"每股退還股款[:：]</th><td>([0-9.]+)&nbsp元", detail)
+        if not per or "現金增資總股數:</th><td>NA</td>" not in detail:
+            return None
+        terms = (number(per[1]), number(refund[1]) if refund else Decimal(0))
+        before, reference = number(record.get("最後交易日之收盤價格")), number(record.get("減資恢復買賣開始日參考價格"))
+    else:
+        terms = detail_terms
+        before, reference = number(record.get("停止買賣前收盤價格")), number(record.get("恢復買賣參考價"))
+    if not terms or None in terms or not before or not reference or terms[0] <= 0:
+        return None
+    multiplier = terms[0] / Decimal(1000)
+    if abs((before - terms[1]) / multiplier - reference) > max(Decimal("0.01"), reference * Decimal("0.005")):
+        return None
+    return multiplier, terms[1]
+
+
+def twse_reduction_terms(raw):
+    obj = json.loads(raw)
+    if str(obj.get("stat", "")).lower() != "ok" or len(obj.get("data", [])) != 1:
+        return None
+    detail = {key.rstrip("：:"): value for key, value in zip(obj["fields"], obj["data"][0], strict=True)}
+    # A reduction combined with a paid-in capital increase has terms this model does not cover.
+    parse = stock_dividends.decimal
+    if parse(detail.get("減資並(有償)現金增資")) not in (None, 0):
+        return None
+    return parse(detail.get("每壹仟股換發新股票")), parse(detail.get("每股退還股款"))
 
 
 def fetch_actions(client, market, first, last):
@@ -149,6 +195,15 @@ def fetch_actions(client, market, first, last):
                 evidence[detail_url] = sha256(detail.encode()).hexdigest()
                 try:
                     terms = stock_dividends.twse_detail_terms(detail)
+                except (ValueError, KeyError, TypeError):
+                    terms = None
+            if market == "TWSE" and kind == "capital_reduction" and "," in row.get("詳細資料", ""):
+                detail_url = TWSE + "reducation/TWTAVUDetail?" + urlencode(
+                    {"STK_NO": code, "FILE_DATE": row["詳細資料"].split(",")[1].strip(), "response": "json"})
+                detail = client.get(detail_url, market)
+                evidence[detail_url] = sha256(detail.encode()).hexdigest()
+                try:
+                    terms = twse_reduction_terms(detail)
                 except (ValueError, KeyError, TypeError):
                     terms = None
             event = normalize_action(kind, row, endpoint, terms)
@@ -288,6 +343,32 @@ def refresh(seed, through, client, fallback_limit=6, market_history=None):
             "through": seed["official_through"], "pending": pending}
 
 
+RESOLVABLE = ("unhandled_ex_right", "capital_reduction", "par_value_change", "unhandled_share_action")
+
+
+def resolve_seed_actions(seed, client):
+    """Upgrade unresolved historical events from the exchanges' own reports for those dates."""
+    pending = {}
+    for stock in seed["stocks"]:
+        for day, event in stock["events"].items():
+            if event["kind"] in RESOLVABLE and event["multiplier"] is None:
+                pending.setdefault((stock["market"], day), []).append(stock)
+    resolved = 0
+    for (market, day), stocks in sorted(pending.items()):
+        first = date.fromisoformat(day)
+        try:
+            found, _ = fetch_actions(client, market, first, first)
+        except (ValueError, KeyError, HTTPError, URLError, TimeoutError) as exc:
+            print(json.dumps({"skipped": [market, day], "error": type(exc).__name__}))
+            continue
+        for stock in stocks:
+            event = found.get((day, stock["code"]))
+            if event and event["multiplier"] is not None:
+                stock["events"][day] = event
+                resolved += 1
+    return resolved
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=Path, required=True)
@@ -295,7 +376,16 @@ def main():
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--through", type=date.fromisoformat)
     parser.add_argument("--wantgoo-history", type=Path)
+    parser.add_argument("--resolve-actions", action="store_true",
+                        help="only upgrade unresolved historical corporate actions, then render")
     args = parser.parse_args()
+    if args.resolve_actions:
+        seed = read_seed(args.seed)
+        count = resolve_seed_actions(seed, SourceClient())
+        write_seed(args.output, seed)
+        print(json.dumps({"resolved_actions": count,
+                          "snapshot_id": render(read_seed(args.output), args.root)["snapshot_id"]}))
+        return
     local = datetime.now(ZoneInfo("Asia/Taipei"))
     through = args.through or local.date() - timedelta(days=local.hour < 20)
     if through > local.date():

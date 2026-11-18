@@ -13,7 +13,8 @@ from .calculation import build_series,load_actions,load_calendar
 from .db import Session,ProviderObservation
 from .engine import DataQualityError
 
-def segmented_series(rows, events, calendar, *, keep_cash_out_of_principal=False, revision_tolerance=None):
+def segmented_series(rows, events, calendar, *, keep_cash_out_of_principal=False, revision_tolerance=None,
+                     reconcile_decreases=False, increase_limit=None):
     """Break on unverified input; only restart from information then available.
 
     Events without interpretable terms and malformed days are skipped, not
@@ -33,7 +34,8 @@ def segmented_series(rows, events, calendar, *, keep_cash_out_of_principal=False
     indices={r.trading_date:i for i,r in enumerate(rows)}
     while position<len(rows):
         result=build_series(rows[position:],events=events,calendar=calendar,buy_price_method='close',
-                            revision_tolerance=revision_tolerance)
+                            revision_tolerance=revision_tolerance,reconcile_decreases=reconcile_decreases,
+                            increase_limit=increase_limit)
         segment+=1
         for item in result['items']:
             item['segment']=segment

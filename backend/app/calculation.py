@@ -127,7 +127,7 @@ def load_calendar(db, start, end):
 
 def build_series(rows, *, events=None, calendar=None, finance_ratio=D('0.6'),
                  reconcile_decreases=False, warmup_assumed=False, buy_price_method='vwap',
-                 revision_tolerance=None):
+                 revision_tolerance=None, increase_limit=None):
     """Return daily estimates through the first unresolvable error, never inventing trades.
 
     For an explicit research scenario only, a downward opening-balance revision keeps
@@ -140,10 +140,10 @@ def build_series(rows, *, events=None, calendar=None, finance_ratio=D('0.6'),
     events=events or {}; issues=[]; output=[]; applied=[]
     previous_balance=None; previous_cost=None; warmup=warmup_assumed; reconciled=False
     initial_cost_sensitivity=D(0)
-    previous_day=None; blocked=None
+    previous_day=None; blocked=None; last_revision=None
     ordered_calendar=sorted(calendar) if calendar is not None else None
     for row in rows:
-        day=row.trading_date
+        day=row.trading_date; revised=None
         if previous_day is not None and day<=previous_day:
             blocked={'date':day,'kind':'unordered_or_duplicate_date'};break
         if calendar is not None:
@@ -170,18 +170,27 @@ def build_series(rows, *, events=None, calendar=None, finance_ratio=D('0.6'),
                 detail={'date':day,'kind':'previous_balance_conflict','previous_date':previous_day,
                         'previous_day_balance':previous_balance,'expected_after_action':expected,
                         'reported_previous_balance':row.previous_balance}
-                small=(revision_tolerance is not None and
-                       abs(D(row.previous_balance)-expected)<=max(D(revision_tolerance[0]),expected*D(revision_tolerance[1])))
-                if small:
+                delta=D(row.previous_balance)-expected
+                limit=(max(D(revision_tolerance[0]),expected*D(revision_tolerance[1]))
+                       if revision_tolerance is not None else None)
+                small=limit is not None and abs(delta)<=limit
+                # The exchange occasionally drops lots from one report and restores them the next day.
+                restored=(limit is not None and last_revision is not None and last_revision<0<delta and
+                          abs(delta+last_revision)<=limit)
+                bounded_increase=(increase_limit is not None and delta>0 and
+                                  delta<=expected*D(increase_limit))
+                if small or restored or bounded_increase:
                     # Exchange revisions of a few lots: carry the prior average cost (as the Wantgoo rebuild does).
-                    detail['assumption']='小幅餘額修訂，沿用前期平均成本；非已確認交易'
-                    issues.append(detail);reconciled=True
+                    detail['assumption']=('前日缺漏部位於次日補回，沿用前期平均成本' if restored and not small else
+                                          '餘額上修，假設新增部位沿用前期平均成本；非已確認交易' if bounded_increase and not small
+                                          else '小幅餘額修訂，沿用前期平均成本；非已確認交易')
+                    issues.append(detail);reconciled=True;revised=delta
                 # Never assign a cost to unexplained newly added positions.
                 elif not reconcile_decreases or D(row.previous_balance)>expected:
                     blocked=detail;break
                 else:
                     detail['assumption']='按比例減少舊部位，平均成本不變；非已確認交易'
-                    issues.append(detail);reconciled=True
+                    issues.append(detail);reconciled=True;revised=delta
         # Once all prior lots are gone, inherited warm-up and revision uncertainty reset.
         if old==0:
             warmup=False; reconciled=False
@@ -231,6 +240,7 @@ def build_series(rows, *, events=None, calendar=None, finance_ratio=D('0.6'),
             a=result['raw_maintenance'];b=prev['raw_maintenance'] if prev else None
             result[f'maintenance_change_{n}d_pp']=a-b if a is not None and b is not None else None
         output.append(result);previous_cost=cost;previous_balance=row.balance;previous_day=day
+        last_revision=revised
         if row.balance==0: warmup=False;reconciled=False
     return {'items':output,'blocked':blocked,'reconciliations':issues,'actions':applied}
 
