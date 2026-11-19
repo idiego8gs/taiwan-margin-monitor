@@ -41,7 +41,17 @@ python scripts/verify-site-export.py pages .local/pages-preview --key-file .loca
 
 公開 Release 上的密文可由訪客下載。金鑰疑似外洩時，停用工作流程，使用新金鑰重新加密已驗證的種子和保留的檢查點，替換雲端檔案與 Secret 後再啟用。已被下載的舊密文無法收回。
 
-UTC 12:37、13:37、14:37、15:37、17:37、20:37、23:37，對應台北時間 20:37 至隔天 07:37。GitHub 排程在尖峰時段常延遲或漏跑，所以每晚多次重試；沒有新交易日的排程不會重新發布。交易日由兩市場的月指數報表驗證。每次回查最近五個已知交易日並補到最新可取得日。兩市場價量與融資報表齊備後才能新增該日。公司行動來源的錯誤會中止工作流程。交易日未公布的情況保留下一次查詢資格，個股未知原因以品質欄標示。
+UTC 12:37、13:37、14:37、15:37、17:37、20:37、23:37，對應台北時間 20:37 至隔天 07:37。GitHub 排程在尖峰時段常延遲或漏跑，所以每晚多次重試；沒有新交易日的排程不會重新發布。
+
+### Cloudflare 定時觸發（主要排程）
+
+GitHub 排程僅盡力執行（2026-11-19 晚上兩次都沒有觸發），所以由 Cloudflare Worker `cloudflare/scheduler` 在 UTC 12:40、13:40、14:40、23:40（台北 20:40、21:40、22:40、07:40）呼叫 `workflow_dispatch`。GitHub 排程保留作備援；重複觸發會排隊執行，沒有新交易日時不重新發布。
+
+1. 在 GitHub 建立 fine-grained token：只選 `taiwan-margin-monitor`，權限 **Actions: Read and write**，其他不給。
+2. `cd cloudflare/scheduler`，執行 `npx wrangler@4 login` 並在瀏覽器授權。
+3. `npx wrangler@4 deploy`。
+4. `npx wrangler@4 secret put GITHUB_TOKEN`，在提示時貼上 token（不要寫進檔案或 commit）。
+5. 在 Cloudflare 儀表板 Workers → taiwan-margin-scheduler → Triggers 可手動執行 Cron 測試，並到 GitHub Actions 確認出現 `workflow_dispatch` 執行。token 到期前需更新第 4 步。交易日由兩市場的月指數報表驗證。每次回查最近五個已知交易日並補到最新可取得日。兩市場價量與融資報表齊備後才能新增該日。公司行動來源的錯誤會中止工作流程。交易日未公布的情況保留下一次查詢資格，個股未知原因以品質欄標示。
 
 ## 補跑、還原與品質
 

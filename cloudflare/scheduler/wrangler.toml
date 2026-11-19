@@ -1,0 +1,17 @@
+# Cloudflare Worker that starts the daily GitHub Actions update on time.
+# GitHub's own schedule is best-effort and skipped both evening slots on 2026-11-19.
+name = "taiwan-margin-scheduler"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+# No public URL: the Worker only runs on its cron triggers.
+workers_dev = false
+
+[triggers]
+# UTC; Taipei 20:40, 21:40, 22:40 (after the exchanges publish margin data) and 07:40.
+crons = ["40 12,13,14,23 * * *"]
+
+[vars]
+REPOSITORY = "idiego8gs/taiwan-margin-monitor"
+WORKFLOW = "margin-pages.yml"
+REF = "main"
+# GITHUB_TOKEN is a secret: `npx wrangler@4 secret put GITHUB_TOKEN`
