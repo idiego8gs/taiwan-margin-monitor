@@ -4,6 +4,7 @@ import {useState} from 'react';
 import {change} from './MarketCard';
 import {fmt, labels, stockLink, type Manifest} from './siteData';
 import {WATCH, watchList, type WatchReason} from './watch';
+import {dropText, dropTo} from './dropTo';
 
 const reasonText: Record<WatchReason, string> = {
   low: `低於 ${WATCH.low}%`,
@@ -26,13 +27,14 @@ export default function WatchList({data}: {data: Manifest}) {
     {items.length === 0
       ? <p className="px-5 pb-5 text-sm text-slate-400">今日沒有符合條件的股票。</p>
       : <div className="overflow-x-auto"><table className="w-full whitespace-nowrap">
-        <thead><tr>{['股票', '維持率', '單日', '5 日', '條件', '品質', '融資餘額'].map(title => <th key={title}>{title}</th>)}</tr></thead>
+        <thead><tr>{['股票', '維持率', '單日', '5 日', '到 130% 需跌', '條件', '品質', '融資餘額'].map(title => <th key={title}>{title}</th>)}</tr></thead>
         <tbody>{visible.map(item => <tr key={item.stock.security_id}>
           <td><a className="text-teal-300 underline-offset-4 hover:underline" href={stockLink(item.stock, data.snapshot_id)}>
             {item.stock.code} {item.stock.name}</a></td>
           <td className="tabular-nums text-white">{fmt(item.maintenance)}%</td>
           <td className="tabular-nums">{change(item.change1)}</td>
           <td className="tabular-nums">{change(item.change5)}</td>
+          <td className="tabular-nums">{dropText(dropTo(item.maintenance, 130))}</td>
           <td><span className="flex gap-1">{item.reasons.map(reason =>
             <span key={reason} className={'rounded px-2 py-0.5 text-xs ' +
               (reason === 'low' ? 'bg-rose-500/15 text-rose-200' : 'bg-amber-500/15 text-amber-200')}>{reasonText[reason]}</span>)}

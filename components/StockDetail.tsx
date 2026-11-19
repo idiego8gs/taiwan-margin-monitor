@@ -3,6 +3,7 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {CandlestickSeries, createChart, HistogramSeries, LineSeries, LineStyle, type Time} from 'lightweight-charts';
 import {chartOptions, tv} from './chartTheme';
+import {LEVELS, dropText, dropTo, priceAt} from './dropTo';
 import {base, csvDownload, fmt, labels, loadHistory, loadIndex, type Day, type Manifest, type Stock} from './siteData';
 
 const ranges = {'1M': 1, '3M': 3, '6M': 6, '1Y': 12, '3Y': 36, 'ALL': 0} as const;
@@ -105,6 +106,38 @@ function Charts({rows, onDay, bridges, taiex}: {
     '股價、維持率、融資餘額及成交量圖表'}/>;
 }
 
+// How far the price can fall before the model ratio reaches each level (loan and lots held fixed).
+function DropPanel({row}: {row?: Day}) {
+  const [custom, setCustom] = useState('');
+  const target = Number(custom);
+  const levels = [...LEVELS, ...(custom && target > 0 && !LEVELS.includes(target as never) ? [target] : [])]
+    .sort((a, b) => b - a);
+  if (row?.maintenance == null || row.close == null) return null;
+  return <section className="panel mb-5 p-4" aria-labelledby="drop-title">
+    <div className="flex flex-wrap items-baseline justify-between gap-3">
+      <h2 id="drop-title" className="font-semibold text-white">股價再跌多少，維持率會到哪裡？</h2>
+      <label className="flex items-center gap-2 text-sm text-slate-300">自訂水位
+        <input className="w-20" inputMode="decimal" placeholder="例：125" value={custom}
+          onChange={event => setCustom(event.target.value.replace(/[^0-9.]/g, ''))}/>%
+      </label>
+    </div>
+    <p className="mt-1 text-xs leading-5 text-slate-400">
+      以 {row.date} 收盤 {fmt(row.close)}、維持率 {fmt(row.maintenance)}% 試算，假設融資餘額與借款不變。130% 為一般追繳線參考，實際追繳依投資人整戶維持率。
+    </p>
+    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {levels.map(level => {
+        const change = dropTo(row.maintenance, level);
+        const below = change != null && change >= 0;
+        return <div key={level} className={'rounded border p-3 ' + (level === 130 ? 'border-amber-400/60' : 'border-slate-700')}>
+          <div className="text-xs text-slate-400">到 {fmt(level, 1)}%</div>
+          <div className={'mt-1 text-lg font-semibold tabular-nums ' + (below ? 'text-rose-300' : 'text-white')}>{dropText(change)}</div>
+          <div className="text-xs tabular-nums text-slate-400">{below ? '目前已在此水位以下' : '股價約 ' + fmt(priceAt(row.close, row.maintenance, level))}</div>
+        </div>;
+      })}
+    </div>
+  </section>;
+}
+
 const actionLabel = (action: NonNullable<Day['action']>) => action.kind === 'stock_dividend'
   ? '除權（配股撥入投資人帳戶，融資股數與借款不變）'
   : action.reason || (action.cash ? '每股現金 ' + action.cash : action.kind);
@@ -200,6 +233,7 @@ export default function StockDetail({id}: {id: string}) {
           <div className="mt-1 text-lg font-semibold text-white">{value}</div>
         </div>)}
       </div>
+      <DropPanel row={selected}/>
       <div className="panel mb-5 p-4">
         <div className="flex flex-wrap items-center gap-2" aria-label="日期區間">
           {(Object.keys(ranges) as (keyof typeof ranges)[]).map(key =>

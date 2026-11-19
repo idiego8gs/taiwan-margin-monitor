@@ -3,6 +3,7 @@
 import {useEffect, useState} from 'react';
 import {base, fmt, getJSON} from './siteData';
 import {marketSummary, type MarketSummary} from './marketSummary';
+import {dropText, dropTo} from './dropTo';
 
 export {marketSummary};
 
@@ -36,6 +37,9 @@ export default function MarketCard() {
       <p className="mt-1 text-3xl font-semibold tabular-nums text-white">{fmt(summary.value)}%</p>
       <p className="mt-1 text-sm tabular-nums text-slate-300">
         較前一交易日 {change(summary.change)}{summary.change == null ? '' : ' 個百分點'}
+      </p>
+      <p className="mt-1 text-xs tabular-nums text-slate-400">
+        到 140%：{dropText(dropTo(summary.value, 140))} · 到 130%：{dropText(dropTo(summary.value, 130))}
       </p>
     </div>
     <div className="flex min-w-[12rem] flex-1 flex-col items-end gap-1">

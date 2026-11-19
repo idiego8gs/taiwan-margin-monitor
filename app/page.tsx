@@ -4,6 +4,7 @@ import {useEffect, useState} from 'react';
 import MarketCard from '../components/MarketCard';
 import {base, csvDownload, fmt, isPages, labels, loadIndex, stockLink, type Manifest} from '../components/siteData';
 import WatchList from '../components/WatchList';
+import {dropText, dropTo} from '../components/dropTo';
 
 const pageSize = 50;
 
@@ -69,19 +70,20 @@ export default function Home() {
             <option value="rank">股票池排名</option><option value="maintenance">維持率由低至高</option>
           </select>
           <button onClick={() => csvDownload('margin-stocks.csv', [
-            ['代號', '名稱', '行情日期', '最後可估算日', '當日資料日期', '收盤', '估算成本', '維持率%', '融資餘額', '品質', '快照', '模型'],
+            ['代號', '名稱', '行情日期', '最後可估算日', '當日資料日期', '收盤', '估算成本', '維持率%', '到130%需跌%', '融資餘額', '品質', '快照', '模型'],
             ...rows.map(stock => [stock.code, stock.name, stock.latest_quote_date, stock.latest_estimate_date,
               stock.latest?.date, stock.latest?.close, stock.latest?.cost, stock.latest?.maintenance,
-              stock.latest?.balance, stock.latest?.quality, data.snapshot_id, data.model]),
+              dropTo(stock.latest?.maintenance, 130)?.toFixed(2), stock.latest?.balance, stock.latest?.quality, data.snapshot_id, data.model]),
           ])}>匯出篩選結果</button>
         </div>
         <div className="overflow-x-auto"><table className="w-full whitespace-nowrap">
-          <thead><tr>{['股票', '市場', '行情日', '收盤', '推估成本', '維持率', '最後可估算日', '品質'].map(title => <th key={title}>{title}</th>)}</tr></thead>
+          <thead><tr>{['股票', '市場', '行情日', '收盤', '推估成本', '維持率', '到 130% 需跌', '最後可估算日', '品質'].map(title => <th key={title}>{title}</th>)}</tr></thead>
           <tbody>{visible.map(stock => <tr key={stock.security_id}>
             <td><a className="text-teal-300 underline-offset-4 hover:underline" href={stockLink(stock, data.snapshot_id)}>{stock.code} {stock.name}</a></td>
             <td>{stock.market === 'TWSE' ? '上市' : stock.market === 'TPEx' ? '上櫃' : '待查'}</td>
             <td>{stock.latest_quote_date || '—'}</td><td>{fmt(stock.latest?.close)}</td>
             <td>{fmt(stock.latest?.cost)}</td><td>{stock.latest?.maintenance == null ? '—' : fmt(stock.latest.maintenance) + '%'}</td>
+            <td className="tabular-nums">{dropText(dropTo(stock.latest?.maintenance, 130))}</td>
             <td>{stock.latest_estimate_date || '—'}</td><td className="text-xs text-amber-200">{labels[stock.latest?.quality || ''] || '待查'}</td>
           </tr>)}</tbody>
         </table></div>
