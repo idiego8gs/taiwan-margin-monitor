@@ -2,7 +2,9 @@ name: Verify and publish margin history
 
 on:
   schedule:
-    - cron: '15 12,14,23 * * *'
+    # Taipei 20:37 through 07:37. GitHub delays or drops busy schedule slots, so several off-peak
+    # retries run each evening; a run with no new trading day keeps the published version.
+    - cron: '37 12,13,14,15,17,20,23 * * *'
   workflow_dispatch:
     inputs:
       through:

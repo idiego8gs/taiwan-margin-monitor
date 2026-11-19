@@ -1,4 +1,5 @@
 import {fmt} from './siteData';
+import {dropText, dropTo} from './dropTo';
 import {marketBacktest as bt} from './marketBacktestData';
 
 const HORIZONS = [20, 60, 120, 250] as const;
@@ -19,6 +20,7 @@ export default function MarketBacktest({latest}: {latest?: readonly [string, num
   // The site curve and the backtest series differ by a small level offset after 2021.
   const current = latest?.[1] == null ? null : latest[1] + bt.siteOffset;
   const below = current == null ? [] : THRESHOLDS.filter(th => current < th);
+  const ahead = current == null ? [] : [...THRESHOLDS.filter(th => th < current), 120, 100].filter((th, i, all) => all.indexOf(th) === i);
   return <section id="backtest" className="panel mt-6 overflow-hidden" aria-labelledby="backtest-title">
     <div className="space-y-3 p-4 sm:p-5">
       <p className="text-xs font-semibold tracking-widest text-teal-300">歷史回測 · {bt.window[0]}～{bt.window[1]}</p>
@@ -33,6 +35,8 @@ export default function MarketBacktest({latest}: {latest?: readonly [string, num
         目前（{latest![0]}）約 <b className="tabular-nums text-white">{fmt(current, 1)}%</b>
         {below.length ? <>，已低於 {below.map(th => th + '%').join('、')} 門檻。</> : '，高於所有回測門檻。'}
         {below.includes(140) && <span className="text-amber-200"> 歷史上跌破 140% 後仍有再跌的情況，見下方最大回落。</span>}
+        {ahead.length > 0 && <span className="mt-1 block text-xs text-slate-400">
+          若融資股等幅下跌：{ahead.map(th => `到 ${th}% ${dropText(dropTo(current, th))}`).join('、')}。</span>}
       </p>}
     </div>
 
