@@ -49,9 +49,10 @@ export async function collect(env, now = new Date(), fetcher = fetch) {
     if (i) await new Promise(resolve => setTimeout(resolve, 800)); // stay well under MIS rate limits
     const body = await json(`${MIS}?ex_ch=${batch.join('|')}&json=1&delay=0&_=${now.getTime()}`, fetcher);
     rows.push(...(body.msgArray ?? []));
+    // The first batch carries the index; on a holiday its date is not today, so stop after one request.
+    if (!i && rows.find(row => row.c === 't00')?.d !== clock.compact) return {skipped: 'no session today'};
   }
   const indexRow = rows.find(row => row.c === 't00');
-  if (!indexRow || indexRow.d !== clock.compact) return {skipped: 'no session today'};
   const quotes = rows.filter(row => row.c !== 't00' && row.c !== 'o00' && row.d === clock.compact).map(parseQuote);
   const summary = summarize({quotes, index: parseIndex(indexRow), ref, baseline: ref.baseline, minute: clock.minute});
   const otc = rows.find(row => row.c === 'o00');

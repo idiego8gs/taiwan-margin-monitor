@@ -61,4 +61,8 @@ test('collect stores a minute point and serve returns it', async () => {
   assert.equal(body.latest.point.lockedDown, 1); assert.equal(body.series.length, 1); assert.equal(body.series[0].pace, 150);
   assert.equal(body.latest.point.watch[0].code, '1111');
   assert.deepEqual(await collect(env, new Date('2026-11-20T06:00:00Z'), fetcher), {skipped: 'outside session'});
+  let misCalls = 0;
+  const holiday = async url => { if (url.startsWith('https://mis')) misCalls++; return fetcher(url); };
+  assert.deepEqual(await collect(env, new Date('2026-11-23T02:00:00Z'), holiday), {skipped: 'no session today'});
+  assert.equal(misCalls, 1);
 });
