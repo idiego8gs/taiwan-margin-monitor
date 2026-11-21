@@ -29,6 +29,10 @@ def verify_data(source):
     return version, ids
 
 
+# Published when the daily update produced them (market_breadth export).
+OPTIONAL_DATA = ("market-breadth.json", "intraday-baseline.json", "market-backtest-live.json")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
@@ -41,8 +45,9 @@ def main():
     data = Path("public/data")
     data.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(args.source / "latest.json", data / "latest.json")
-    if (args.source / "wantgoo-market.json").is_file():
-        shutil.copyfile(args.source / "wantgoo-market.json", data / "wantgoo-market.json")
+    for name in ("wantgoo-market.json",) + OPTIONAL_DATA:
+        if (args.source / name).is_file():
+            shutil.copyfile(args.source / name, data / name)
     relative = Path("snapshots") / version
     shutil.copytree(args.source / relative, data / relative, dirs_exist_ok=True)
     env = os.environ | {"NEXT_PUBLIC_PAGES": "1", "NEXT_TELEMETRY_DISABLED": "1"}
@@ -53,14 +58,18 @@ def main():
     artifact.mkdir(parents=True)
     for file in ("index.html", "index.txt", "404.html"):
         shutil.copyfile(Path("out") / file, artifact / file)
-    (artifact / "market").mkdir()
-    for file in ("index.html", "index.txt"):
-        shutil.copyfile(Path("out/market") / file, artifact / "market" / file)
+    for page in ("market", "intraday"):
+        (artifact / page).mkdir()
+        for file in ("index.html", "index.txt"):
+            shutil.copyfile(Path("out") / page / file, artifact / page / file)
     for directory in ("_next", "stocks"):
         shutil.copytree(Path("out") / directory, artifact / directory)
     (artifact / "data").mkdir()
     shutil.copyfile(data / "latest.json", artifact / "data" / "latest.json")
     shutil.copyfile(data / "wantgoo-market.json", artifact / "data" / "wantgoo-market.json")
+    for name in OPTIONAL_DATA:
+        if (data / name).is_file():
+            shutil.copyfile(data / name, artifact / "data" / name)
     shutil.copytree(data / relative, artifact / "data" / relative)
     for file in ("research.html", "research-results-4bdea2ad5b22.txt", "database.html", "database-status.json"):
         shutil.copyfile(Path("github-pages") / file, artifact / file)

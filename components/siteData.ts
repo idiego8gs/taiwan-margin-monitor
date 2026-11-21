@@ -1,5 +1,7 @@
 export const isPages = process.env.NEXT_PUBLIC_PAGES === '1';
 export const base = isPages ? '/taiwan-margin-monitor' : '';
+// Cloudflare Worker serving the intraday monitor; empty until it is deployed.
+export const intradayUrl = process.env.NEXT_PUBLIC_INTRADAY_URL || '';
 const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export type Day = {
