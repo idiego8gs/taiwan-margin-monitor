@@ -62,3 +62,13 @@ GitHub 排程僅盡力執行（2026-11-19 晚上兩次都沒有觸發），所�
 - 雲端狀態包含重新計算所需的標準化輸入與來源指紋，完整 PostgreSQL 和原始歷史庫留在本機。官網快照匯出只接受經核對的展示檔；本機種子、金鑰與憑證不得納入 Pages artifact。
 - FinMind 僅針對官方報表個股行情缺漏補查，標註替代來源。公司行動只使用明確的換股率。未取得可核對的條款時切斷成本段。
 - 進一步核對估算時使用逐日 CSV。官方價量與融資變動來源分列，原始快照可由版本 ID 核對。130% 參考價為估計成本 × 0.6 × 1.3。
+
+### 盤中即時 Worker（`cloudflare/intraday`）
+
+交易日台北 09:00～13:35 每分鐘讀證交所 MIS 報價，對股票池 500 檔計算漲跌停與鎖死家數、成交節奏（相對 `data/intraday-baseline.json` 的近 20 日同時間中位數）、五檔深度與推估維持率，存在 KV，經 `GET /intraday.json` 提供給 `/intraday/` 頁面。只公開彙總結果；MIS 是非正式介面，可能限流，頁面標示「非交易用途」。
+
+1. `cd cloudflare/intraday`，執行 `npx wrangler@4 kv namespace create INTRADAY`，把回傳的 id 填入 `wrangler.toml` 的 `REPLACE_WITH_KV_NAMESPACE_ID`。
+2. `npx wrangler@4 deploy`，記下 `https://taiwan-margin-intraday.<子網域>.workers.dev`。
+3. `gh variable set INTRADAY_URL --body <上一步網址>`，再手動執行一次發布工作流程，讓網站帶入網址。
+4. 下一個交易日盤中確認 `<網址>/intraday.json` 每分鐘更新，並用 `npx wrangler@4 tail` 檢查有沒有 CPU 超限；免費方案每次 10 ms，超限時改用 Workers Paid 或縮小 `BATCH`。
+5. 休市日第一個請求就會停止；每天 KV 寫入約 550 次，在免費額度內。
