@@ -4,6 +4,7 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import {createChart, LineSeries, type Time} from 'lightweight-charts';
 import {chartOptions} from './chartTheme';
 import MarketBacktest from './MarketBacktest';
+import MarketBreadth from './MarketBreadth';
 import {base, csvDownload, fmt, getJSON} from './siteData';
 
 type MarketDay = [date: string, estimate: number | null, reference: number | null,
@@ -156,6 +157,7 @@ export default function MarketMaintenance() {
       </section>
 
       <MarketBacktest latest={latest}/>
+      <MarketBreadth/>
 
       <details className="panel mt-6 overflow-hidden">
         <summary className="cursor-pointer p-4 font-semibold text-white sm:p-5">算法、資料範圍及 4763 驗證</summary>

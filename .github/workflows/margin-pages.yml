@@ -124,6 +124,8 @@ jobs:
           set -euo pipefail
           python -m app.wantgoo_daily export --seed "$SITE_TEMP/next.json.gz" \
             --historical public/data/wantgoo-market.json --output "$SITE_TEMP/data/wantgoo-market.json"
+          # Breadth, the intraday baseline and live backtest signals are supplementary files.
+          python -m app.market_breadth export --seed "$SITE_TEMP/next.json.gz" --market "$SITE_TEMP/data/wantgoo-market.json" --output "$SITE_TEMP/data"
           echo "sha256=$(sha256sum "$SITE_TEMP/data/wantgoo-market.json" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Seal checkpoint for the separate upload job
         id: seal
@@ -145,6 +147,9 @@ jobs:
         run: rm -f -- "$SITE_TEMP/seed.json.gz" "$SITE_TEMP/next.json.gz"
       - name: Verify stock files and build static pages
         if: steps.data.outputs.deploy == 'true'
+        env:
+          # Repository variable set once the intraday Worker is deployed; empty shows "not enabled".
+          NEXT_PUBLIC_INTRADAY_URL: ${{ vars.INTRADAY_URL }}
         run: |
           npm ci --ignore-scripts
           python scripts/build-site.py "$SITE_TEMP/data" "$SITE_TEMP/pages"

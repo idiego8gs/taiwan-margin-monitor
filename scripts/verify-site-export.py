@@ -18,7 +18,10 @@ ROOT_FILES = {
     ".nojekyll", "404.html", "index.html", "index.txt", "research.html",
     "research-results-4bdea2ad5b22.txt", "database.html", "database-status.json",
     "market/index.html", "market/index.txt", "data/wantgoo-market.json",
+    "intraday/index.html", "intraday/index.txt",
 }
+# Supplementary data a run may legitimately lack (e.g. a breadth source was not yet published).
+OPTIONAL_FILES = {"data/market-breadth.json", "data/intraday-baseline.json", "data/market-backtest-live.json"}
 ROW_FIELDS = {
     "open", "high", "low", "close", "volume", "turnover", "previous_balance",
     "margin_buy", "margin_sell", "repayment", "balance", "limit", "price_source",
@@ -32,6 +35,7 @@ EVENT_FIELDS = {"kind", "source", "reason", "multiplier", "cash"}
 SEED_FIELDS = {
     "format", "universe_date", "universe_id", "calendar", "stocks", "official_through",
     "official_dates", "action_evidence", "workflow_run", "taiex_close", "wantgoo_daily",
+    "breadth", "intraday_curves",
 }
 MARKETS = {"TWSE", "TPEx"}
 HASH = re.compile(r"[a-f0-9]{64}\Z")
@@ -144,7 +148,7 @@ def check_pages(root, key):
             continue
         if not path.is_file() or path.stat().st_nlink != 1:
             raise ValueError("Only regular files are allowed in the Pages artifact")
-        if relative not in ROOT_FILES | data_files and not (
+        if relative not in ROOT_FILES | OPTIONAL_FILES | data_files and not (
             relative.startswith(("_next/", "stocks/")) and
             path.suffix in {".js", ".css", ".html", ".txt", ".woff", ".woff2"} and
             not any(part.startswith(".") for part in path.relative_to(root).parts)

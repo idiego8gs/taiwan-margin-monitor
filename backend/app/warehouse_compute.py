@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
 import argparse,json
-from sqlalchemy import select,func
+from sqlalchemy import select,func,delete
 from sqlalchemy.orm import Session
 from .db import engine,ProviderResponse
 from . import warehouse_schema as s
@@ -26,6 +26,17 @@ def refresh_counts(target_engine=engine):
         for name,group in coverage['groups'].items():group['summary']['computable']=counts.get(name,0)
         coverage['computed_data_version']=snap['data_version'];coverage['computed_at']=str(snap['created_at'])
         upsert(c,s.checks,dict(name='coverage',summary_json=encode(coverage),checked_at=check['checked_at']),['name'])
+# Older vintages are re-computable from the stored inputs. Keeping every one filled the disk
+# (2026-11-22: 23 copies, 38 GB), so each model keeps only its newest few.
+KEEP_VERSIONS=2
+def prune_old_versions(c,model=MODEL,keep=KEEP_VERSIONS):
+    recent=[r['data_version'] for r in c.execute(select(s.snapshots.c.data_version,s.snapshots.c.summary_json)
+            .order_by(s.snapshots.c.created_at.desc(),s.snapshots.c.id)).mappings()
+            if json.loads(r['summary_json']).get('model_version')==model][:keep]
+    if not recent:return 0
+    deleted=c.execute(delete(s.estimates).where(s.estimates.c.model_version==model,s.estimates.c.data_version.notin_(recent))).rowcount
+    c.execute(delete(s.segments).where(s.segments.c.model_version==model,s.segments.c.data_version.notin_(recent)))
+    return deleted
 def compute(target_engine=engine,progress=None):
     isolation='REPEATABLE READ' if target_engine.dialect.name=='postgresql' else 'SERIALIZABLE'
     with target_engine.connect() as c,target_engine.connect().execution_options(isolation_level=isolation) as source:
@@ -120,6 +131,7 @@ def compute(target_engine=engine,progress=None):
             snapshot_id=digest([version,MODEL])
             # Research-only is visible but never promoted to a production-complete snapshot.
             insert_ignore(c,s.snapshots,dict(id=snapshot_id,as_of=summary['as_of'],status='research_only',data_version=version,summary_json=encode(summary)),['id']);c.commit()
+            summary['pruned_rows']=prune_old_versions(c);c.commit()
     refresh_counts(target_engine)
     return summary
 if __name__=='__main__':print(encode(compute()))

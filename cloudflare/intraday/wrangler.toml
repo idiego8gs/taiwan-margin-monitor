@@ -1,0 +1,19 @@
+# Intraday liquidity and limit-move monitor. Runs each minute during the Taiwan session and serves
+# the result to the static site. Aggregates and model estimates only; raw quotes are not republished.
+name = "taiwan-margin-intraday"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[triggers]
+# UTC 01:00-05:59 = Taipei 09:00-13:59; the Worker itself stops after 13:35 and on non-trading days.
+crons = ["* 1-5 * * *"]
+
+[[kv_namespaces]]
+binding = "INTRADAY"
+# Filled in after `npx wrangler@4 kv namespace create INTRADAY`.
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[vars]
+PAGES = "https://idiego8gs.github.io/taiwan-margin-monitor"
+ALLOW_ORIGIN = "https://idiego8gs.github.io"

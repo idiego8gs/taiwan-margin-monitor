@@ -17,7 +17,7 @@ from .benchmark import TPEX_URL, URL, parse_report, parse_tpex_report
 from .finmind import BASE_URL
 from .official_repair import NotPublished, number, parse_margin, parse_prices, urls
 from .site_snapshot import MARKETS, START, json_bytes, read_seed, render, write_seed
-from . import stock_dividends, wantgoo_daily
+from . import market_breadth, stock_dividends, wantgoo_daily
 
 TWSE = "https://www.twse.com.tw/rwd/zh/"
 TPEX = "https://www.tpex.org.tw/www/zh-tw/bulletin/"
@@ -397,6 +397,11 @@ def main():
     client = SourceClient()
     result = refresh(seed, through, client, market_history=market_history)
     refresh_taiex(seed, client)
+    try:
+        result["breadth"] = market_breadth.refresh(seed, client)
+    except (ValueError, KeyError, HTTPError, URLError, TimeoutError) as exc:
+        # Breadth is supplementary; a source problem must not block the margin update.
+        result["breadth_error"] = type(exc).__name__
     if 'wantgoo_daily' in seed:
         result['market_through'] = seed['wantgoo_daily']['through']
     # Keep the existing publication if neither inputs nor available dates changed.

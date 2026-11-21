@@ -1,10 +1,13 @@
-import {fmt} from './siteData';
+import {useEffect, useState} from 'react';
+import {base, fmt, getJSON} from './siteData';
 import {dropText, dropTo} from './dropTo';
 import {marketBacktest as bt} from './marketBacktestData';
 
 const HORIZONS = [20, 60, 120, 250] as const;
 const THRESHOLDS = [160, 155, 150, 145, 140, 135, 130] as const;
 type Stat = (typeof bt.stats)[number];
+type LiveEvent = {threshold: number; signal: string; ratio: number; entry: string | null;
+  r20: number | null; r60: number | null; r120: number | null; r250: number | null};
 
 const stat = (kind: string, th: number, h: number) =>
   (bt.stats as readonly Stat[]).find(row => row.kind === kind && row.th === th && row.h === h);
@@ -15,6 +18,11 @@ const tone = (value: number | null | undefined) =>
 
 /** Fixed-spec bottom-fishing backtest of the listed-market margin ratio (research only, not advice). */
 export default function MarketBacktest({latest}: {latest?: readonly [string, number | null, ...unknown[]]}) {
+  const [live, setLive] = useState<LiveEvent[] | null>(null);
+  useEffect(() => {
+    getJSON<{events: LiveEvent[]}>(base + '/data/market-backtest-live.json')
+      .then(payload => setLive(payload.events)).catch(() => setLive(null));
+  }, []);
   const head = stat('ratio', 140, 20)!;
   const drawdown = stat('drawdown', -20, 20);
   // The site curve and the backtest series differ by a small level offset after 2021.
@@ -81,6 +89,24 @@ export default function MarketBacktest({latest}: {latest?: readonly [string, num
         </tr>)}</tbody>
       </table>
     </div>
+
+    {live && live.length > 0 && <>
+      <div className="space-y-2 border-t border-slate-800 p-4 sm:p-5">
+        <h3 className="font-semibold text-white">回測期間後的新訊號（每日自動更新，尚未納入上方檢定）</h3>
+        <p className="text-xs leading-5 text-slate-400">依同一規則偵測 {bt.window[1]} 之後的跌破事件，使用本站大盤曲線；報酬滿期後才會顯示。</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full whitespace-nowrap text-sm">
+          <thead><tr><th className="text-left">門檻</th><th>訊號日</th><th>當日維持率</th><th>進場日</th>{HORIZONS.map(h => <th key={h}>{h} 日</th>)}</tr></thead>
+          <tbody>{[...live].sort((a, b) => b.signal.localeCompare(a.signal) || b.threshold - a.threshold).map(row =>
+            <tr key={row.threshold + row.signal}>
+              <td className="text-left font-semibold text-white">&lt; {row.threshold}%</td><td>{row.signal}</td>
+              <td className="tabular-nums">{fmt(row.ratio)}%</td><td>{row.entry ?? '次一交易日'}</td>
+              {HORIZONS.map(h => { const value = row[`r${h}` as const]; return <td key={h} className={'tabular-nums ' + tone(value)}>{value == null ? '尚未滿期' : pct(value)}</td>; })}
+            </tr>)}</tbody>
+        </table>
+      </div>
+    </>}
 
     <div className="space-y-3 border-t border-slate-800 p-4 text-sm leading-7 text-slate-300 sm:p-5">
       <p>
