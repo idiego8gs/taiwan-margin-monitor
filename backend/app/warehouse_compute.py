@@ -34,9 +34,9 @@ def prune_old_versions(c,model=MODEL,keep=KEEP_VERSIONS):
             .order_by(s.snapshots.c.created_at.desc(),s.snapshots.c.id)).mappings()
             if json.loads(r['summary_json']).get('model_version')==model][:keep]
     if not recent:return 0
-    deleted=c.execute(delete(s.estimates).where(s.estimates.c.model_version==model,s.estimates.c.data_version.notin_(recent))).rowcount
-    c.execute(delete(s.segments).where(s.segments.c.model_version==model,s.segments.c.data_version.notin_(recent)))
-    return deleted
+    # Segment rows are small; deleting them would make PostgreSQL check daily_estimates.segment_id,
+    # which has no index, row by row (a 2026-11-23 run sat in that check for 1.5 days). Keep them.
+    return c.execute(delete(s.estimates).where(s.estimates.c.model_version==model,s.estimates.c.data_version.notin_(recent))).rowcount
 def compute(target_engine=engine,progress=None):
     isolation='REPEATABLE READ' if target_engine.dialect.name=='postgresql' else 'SERIALIZABLE'
     with target_engine.connect() as c,target_engine.connect().execution_options(isolation_level=isolation) as source:
